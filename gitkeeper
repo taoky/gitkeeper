@@ -22,16 +22,21 @@ if os.environ.get("SUDO_USER"):
 else:
     USER_CONFIG_FILE = Path.home() / ".gitkeeper.conf"
 
+current_username = os.environ.get("SUDO_USER") or pwd.getpwuid(os.getuid()).pw_name
+
 
 class GitRuntimeError(RuntimeError):
     pass
 
 
-def run_git_command(repo, command, sudo_user=None, raise_on_error=True):
+def run_git_command(repo, command, sudo_user=None, raise_on_error=True, tty=False):
     if sudo_user:
         command = ["sudo", "-u", sudo_user] + command
     command = ["git"] + command
-    p = subprocess.run(command, cwd=repo, stdout=subprocess.PIPE)
+    if not tty:
+        p = subprocess.run(command, cwd=repo, stdout=subprocess.PIPE)
+    else:
+        p = subprocess.run(command, cwd=repo)
     if raise_on_error and p.returncode != 0:
         raise GitRuntimeError(f"Error running {command} on {repo}")
     stdout = p.stdout.decode("utf-8")
@@ -40,45 +45,28 @@ def run_git_command(repo, command, sudo_user=None, raise_on_error=True):
     return (p.returncode, stdout)
 
 
-def main(args):
-    current_uid = os.getuid()
-    if USER_CONFIG_FILE.exists():
-        config = configparser.ConfigParser()
-        config.read(USER_CONFIG_FILE)
-        user_email = config["user"]["email"]
-    else:
-        # ask for user email, save it to USER_CONFIG_FILE
-        user_email = input("Enter your email: ")
-        config = configparser.ConfigParser()
-        config["user"] = {"email": user_email}
-        with open(USER_CONFIG_FILE, "w") as f:
-            config.write(f)
-        print(f"You can change your email in {USER_CONFIG_FILE}")
+def get_sudo_user(repo, current_uid):
+    uid = repo.stat().st_uid
+    if uid != current_uid:
+        return pwd.getpwuid(uid).pw_name
+    return None
 
-    if not GLOBAL_CONFIG_FILE.exists():
-        print(f"Global config file {GLOBAL_CONFIG_FILE} not found")
-        exit(1)
 
-    config = json.loads(GLOBAL_CONFIG_FILE.read_text())
-    assert type(config) == list
-
+def status(config, current_uid):
     # repo, status, remote
     table = []
 
     for repo in config:
+        repo = config[repo]
         item = [repo, "?", "?"]
         table.append(item)
 
         try:
             repo = Path(repo)
-            # get repo dir owner
-            uid = repo.stat().st_uid
-            if uid != current_uid:
-                sudo_user = pwd.getpwuid(uid).pw_name
-            else:
-                sudo_user = None
-            # print status
-            status = run_git_command(repo, ["status", "--porcelain=v1"], sudo_user=sudo_user)
+            sudo_user = get_sudo_user(repo, current_uid)
+            status = run_git_command(
+                repo, ["status", "--porcelain=v1"], sudo_user=sudo_user
+            )
             untracked = 0
             staged = 0
             for line in status.split("\n"):
@@ -89,7 +77,6 @@ def main(args):
                     untracked += 1
                 else:
                     staged += 1
-            # print(f"{repo}: {staged} staged, {untracked} untracked files")
             if untracked or staged:
                 item[1] = f"❗ {staged} staged, {untracked} untracked"
             else:
@@ -99,15 +86,20 @@ def main(args):
             remote = run_git_command(repo, ["remote"], sudo_user=sudo_user)
             remote = remote.strip()
             if not remote:
-                # print(f"{repo} has no remote")
                 item[2] = "N/A"
                 continue
             else:
                 # fetch
                 _ = run_git_command(repo, ["fetch"], sudo_user=sudo_user)
-                local_hash = run_git_command(repo, ["rev-parse", "HEAD"], sudo_user=sudo_user)
-                remote_hash = run_git_command(repo, ["rev-parse", "@{u}"], sudo_user=sudo_user)
-                base_hash = run_git_command(repo, ["merge-base", "HEAD", "@{u}"], sudo_user=sudo_user)
+                local_hash = run_git_command(
+                    repo, ["rev-parse", "HEAD"], sudo_user=sudo_user
+                )
+                remote_hash = run_git_command(
+                    repo, ["rev-parse", "@{u}"], sudo_user=sudo_user
+                )
+                base_hash = run_git_command(
+                    repo, ["merge-base", "HEAD", "@{u}"], sudo_user=sudo_user
+                )
                 msg = ""
                 if local_hash == remote_hash:
                     msg = "✅ up to date"
@@ -124,17 +116,75 @@ def main(args):
     print(tabulate.tabulate(table, headers=["Repo", "Status", "Remote"]))
 
 
+def commit(repo, current_uid, user_name, user_email):
+    try:
+        repo = Path(repo)
+        sudo_user = get_sudo_user(repo, current_uid)
+        # commit
+        run_git_command(repo, ["add", "."], sudo_user=sudo_user)
+        run_git_command(
+            repo,
+            ["-c", f"user.name={user_name}", "-c", f"user.email={user_email}", "commit"],
+            sudo_user=sudo_user,
+            tty=True,
+        )
+    except GitRuntimeError as e:
+        print(e)
+        exit(1)
+
+
+def main(args):
+    current_uid = os.getuid()
+    if USER_CONFIG_FILE.exists():
+        config = configparser.ConfigParser()
+        config.read(USER_CONFIG_FILE)
+        user_email = config["user"]["email"]
+    else:
+        # ask for user email, save it to USER_CONFIG_FILE
+        user_email = input("Enter your email: ")
+        config = configparser.ConfigParser()
+        config["user"] = {"email": user_email}
+        with open(USER_CONFIG_FILE, "w") as f:
+            config.write(f)
+        print(f"You can change your email in {USER_CONFIG_FILE}")
+    user_name = config["user"].get("name", current_username)
+
+    if not GLOBAL_CONFIG_FILE.exists():
+        print(f"Global config file {GLOBAL_CONFIG_FILE} not found")
+        exit(1)
+
+    config = json.loads(GLOBAL_CONFIG_FILE.read_text())
+    assert type(config) == dict
+
+    if args.command == "status":
+        status(config, current_uid)
+    elif args.command == "commit":
+        repo = args.repo
+        repo_path = config[repo]
+        commit(repo_path, current_uid, user_name, user_email)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("Track git repos")
+    parser.add_argument("--config", "-c", help="Path to config file", default=None)
     subparsers = parser.add_subparsers(dest="command")
     parser_status = subparsers.add_parser("status", help="Show status of repo(s)")
     parser_status.add_argument("repo", nargs="*", help="Repo(s) to show status of")
-    parser_commit = subparsers.add_parser("commit", help="Commit changes in repo(s) on behalf of current user")
-    parser_commit.add_argument("repo", nargs="*", help="Repo(s) to commit changes in")
+    parser_commit = subparsers.add_parser(
+        "commit", help="Add all and commit changes in repo(s) on behalf of current user"
+    )
+    parser_commit.add_argument("repo", help="Repo(s) to commit changes in")
+    parser_update = subparsers.add_parser(
+        "update", help="Push/pull repo(s) with remote"
+    )
+    parser_update.add_argument("repo", nargs="*", help="Repo(s) to push/pull")
     parser_git = subparsers.add_parser("vcs", help="Run a git command on repo(s)")
-    parser_git.add_argument("repo", nargs="*", help="Repo(s) to run git command on")
+    parser_git.add_argument("repo", help="Repo(s) to run git command on")
 
     args = parser.parse_args()
+    if args.command is None:
+        args.command = "status"
+    if args.config:
+        GLOBAL_CONFIG_FILE = Path(args.config)
 
     main(args)
