@@ -6,6 +6,7 @@ import subprocess
 from pathlib import Path
 import os
 import pwd
+from typing import Optional
 
 # third-party deps
 try:
@@ -29,7 +30,13 @@ class GitRuntimeError(RuntimeError):
     pass
 
 
-def run_git_command(repo, command, sudo_user=None, raise_on_error=True, editor=False):
+def run_git_command(
+    repo,
+    command: list,
+    sudo_user: str = None,
+    raise_on_error: bool = True,
+    editor: bool = False,
+):
     if sudo_user:
         command = ["sudo", "-u", sudo_user] + command
     command = ["git"] + command
@@ -48,14 +55,14 @@ def run_git_command(repo, command, sudo_user=None, raise_on_error=True, editor=F
     return (p.returncode, stdout)
 
 
-def get_sudo_user(repo, current_uid):
+def get_sudo_user(repo: Path, current_uid: int) -> Optional[str]:
     uid = repo.stat().st_uid
     if uid != current_uid:
         return pwd.getpwuid(uid).pw_name
     return None
 
 
-def status(config, current_uid):
+def status(config: dict, current_uid: int) -> None:
     # repo, status, remote
     table = []
 
@@ -119,7 +126,7 @@ def status(config, current_uid):
     print(tabulate.tabulate(table, headers=["Repo", "Status", "Remote"]))
 
 
-def commit(repo, current_uid, user_name, user_email):
+def commit(repo: str, current_uid: int, user_name: str, user_email: str, args: list):
     try:
         repo = Path(repo)
         sudo_user = get_sudo_user(repo, current_uid)
@@ -127,7 +134,14 @@ def commit(repo, current_uid, user_name, user_email):
         run_git_command(repo, ["add", "."], sudo_user=sudo_user)
         run_git_command(
             repo,
-            ["-c", f"user.name={user_name}", "-c", f"user.email={user_email}", "commit"],
+            [
+                "-c",
+                f"user.name={user_name}",
+                "-c",
+                f"user.email={user_email}",
+                "commit",
+                *args,
+            ],
             sudo_user=sudo_user,
             editor=True,
         )
@@ -164,7 +178,7 @@ def main(args):
     elif args.command == "commit":
         repo = args.repo
         repo_path = config[repo]
-        commit(repo_path, current_uid, user_name, user_email)
+        commit(repo_path, current_uid, user_name, user_email, args.args)
 
 
 if __name__ == "__main__":
@@ -177,6 +191,9 @@ if __name__ == "__main__":
         "commit", help="Add all and commit changes in repo(s) on behalf of current user"
     )
     parser_commit.add_argument("repo", help="Repo(s) to commit changes in")
+    parser_commit.add_argument(
+        "args", nargs=argparse.REMAINDER, help="Arguments appended to git commit"
+    )
     parser_update = subparsers.add_parser(
         "update", help="Push/pull repo(s) with remote"
     )
