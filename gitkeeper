@@ -48,8 +48,9 @@ def run_git_command(
     timeout: Optional[float] = None,
 ):
     if sudo_user:
-        command = ["sudo", "-u", sudo_user] + command
-    command = ["git"] + command
+        command = ["sudo", "-u", sudo_user, "git"] + command
+    else:
+        command = ["git"] + command
     if not raw:
         p = subprocess.run(command, cwd=repo, stdout=subprocess.PIPE, timeout=timeout)
     else:
