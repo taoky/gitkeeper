@@ -23,12 +23,21 @@ else:
     USER_CONFIG_FILE = Path.home() / ".gitkeeper.conf"
 
 
-def run_git_command(repo, command, sudo_user=None):
+class GitRuntimeError(RuntimeError):
+    pass
+
+
+def run_git_command(repo, command, sudo_user=None, raise_on_error=True):
     if sudo_user:
         command = ["sudo", "-u", sudo_user] + command
     command = ["git"] + command
     p = subprocess.run(command, cwd=repo, stdout=subprocess.PIPE)
-    return (p.returncode, p.stdout.decode("utf-8"))
+    if raise_on_error and p.returncode != 0:
+        raise GitRuntimeError(f"Error running {command} on {repo}")
+    stdout = p.stdout.decode("utf-8")
+    if raise_on_error:
+        return stdout
+    return (p.returncode, stdout)
 
 
 def main(args):
@@ -60,76 +69,58 @@ def main(args):
         item = [repo, "?", "?"]
         table.append(item)
 
-        repo = Path(repo)
-        # get repo dir owner
-        uid = repo.stat().st_uid
-        if uid != current_uid:
-            sudo_user = pwd.getpwuid(uid).pw_name
-        else:
-            sudo_user = None
-        # print status
-        ret, status = run_git_command(repo, ["status", "--porcelain=v1"], sudo_user=sudo_user)
-        if ret != 0:
-            print(f"Error running git status on {repo}")
-            continue
-        untracked = 0
-        staged = 0
-        for line in status.split("\n"):
-            if not line:
-                continue
-            status, file = line.split(" ", 1)
-            if status == "??":
-                untracked += 1
+        try:
+            repo = Path(repo)
+            # get repo dir owner
+            uid = repo.stat().st_uid
+            if uid != current_uid:
+                sudo_user = pwd.getpwuid(uid).pw_name
             else:
-                staged += 1
-        # print(f"{repo}: {staged} staged, {untracked} untracked files")
-        if untracked or staged:
-            item[1] = f"{staged} staged, {untracked} untracked"
-        else:
-            item[1] = "clean"
+                sudo_user = None
+            # print status
+            status = run_git_command(repo, ["status", "--porcelain=v1"], sudo_user=sudo_user)
+            untracked = 0
+            staged = 0
+            for line in status.split("\n"):
+                if not line:
+                    continue
+                status, file = line.split(" ", 1)
+                if status == "??":
+                    untracked += 1
+                else:
+                    staged += 1
+            # print(f"{repo}: {staged} staged, {untracked} untracked files")
+            if untracked or staged:
+                item[1] = f"❗ {staged} staged, {untracked} untracked"
+            else:
+                item[1] = "✅ clean"
 
-        # get remote info
-        ret, remote = run_git_command(repo, ["remote"], sudo_user=sudo_user)
-        remote = remote.strip()
-        if ret != 0:
-            print(f"Error running git remote on {repo}")
-            continue
-        if not remote:
-            # print(f"{repo} has no remote")
-            item[2] = "N/A"
-            continue
-        else:
-            # fetch
-            ret, _ = run_git_command(repo, ["fetch"], sudo_user=sudo_user)
-            if ret != 0:
-                print(f"Error running git fetch on {repo}")
+            # get remote info
+            remote = run_git_command(repo, ["remote"], sudo_user=sudo_user)
+            remote = remote.strip()
+            if not remote:
+                # print(f"{repo} has no remote")
+                item[2] = "N/A"
                 continue
-            ret, local_hash = run_git_command(repo, ["rev-parse", "HEAD"], sudo_user=sudo_user)
-            if ret != 0:
-                print(f"Error running git rev-parse HEAD on {repo}")
-                continue
-            ret, remote_hash = run_git_command(repo, ["rev-parse", "@{u}"], sudo_user=sudo_user)
-            if ret != 0:
-                print(f"Error running git rev-parse {remote}/HEAD on {repo}")
-                continue
-            ret, base_hash = run_git_command(repo, ["merge-base", "HEAD", "@{u}"], sudo_user=sudo_user)
-            if ret != 0:
-                print(f"Error running git merge-base HEAD {remote}/HEAD on {repo}")
-                continue
-            msg = ""
-            if local_hash == remote_hash:
-                # print(f"{repo} is up to date")
-                msg = "up to date"
-            elif local_hash == base_hash:
-                # print(f"{repo} needs to be pulled")
-                msg = "needs to be pulled"
-            elif remote_hash == base_hash:
-                # print(f"{repo} needs to be pushed")
-                msg = "needs to be pushed"
             else:
-                # print(f"{repo} has diverged")
-                msg = "has diverged"
-            item[2] = msg
+                # fetch
+                _ = run_git_command(repo, ["fetch"], sudo_user=sudo_user)
+                local_hash = run_git_command(repo, ["rev-parse", "HEAD"], sudo_user=sudo_user)
+                remote_hash = run_git_command(repo, ["rev-parse", "@{u}"], sudo_user=sudo_user)
+                base_hash = run_git_command(repo, ["merge-base", "HEAD", "@{u}"], sudo_user=sudo_user)
+                msg = ""
+                if local_hash == remote_hash:
+                    msg = "✅ up to date"
+                elif local_hash == base_hash:
+                    msg = "⬇️ needs pull"
+                elif remote_hash == base_hash:
+                    msg = "⬆️ needs push"
+                else:
+                    msg = "🔀 diverged"
+                item[2] = msg
+        except GitRuntimeError as e:
+            print(e)
+            continue
     print(tabulate.tabulate(table, headers=["Repo", "Status", "Remote"]))
 
 
