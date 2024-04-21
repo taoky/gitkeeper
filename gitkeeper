@@ -29,17 +29,20 @@ class GitRuntimeError(RuntimeError):
     pass
 
 
-def run_git_command(repo, command, sudo_user=None, raise_on_error=True, tty=False):
+def run_git_command(repo, command, sudo_user=None, raise_on_error=True, editor=False):
     if sudo_user:
         command = ["sudo", "-u", sudo_user] + command
     command = ["git"] + command
-    if not tty:
+    if not editor:
         p = subprocess.run(command, cwd=repo, stdout=subprocess.PIPE)
     else:
         p = subprocess.run(command, cwd=repo)
     if raise_on_error and p.returncode != 0:
         raise GitRuntimeError(f"Error running {command} on {repo}")
-    stdout = p.stdout.decode("utf-8")
+    if not editor:
+        stdout = p.stdout.decode("utf-8")
+    else:
+        stdout = None
     if raise_on_error:
         return stdout
     return (p.returncode, stdout)
@@ -126,7 +129,7 @@ def commit(repo, current_uid, user_name, user_email):
             repo,
             ["-c", f"user.name={user_name}", "-c", f"user.email={user_email}", "commit"],
             sudo_user=sudo_user,
-            tty=True,
+            editor=True,
         )
     except GitRuntimeError as e:
         print(e)
