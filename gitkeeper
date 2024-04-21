@@ -7,6 +7,12 @@ from pathlib import Path
 import os
 import pwd
 
+# third-party deps
+try:
+    import tabulate
+except ImportError:
+    print("Missing deps: apt-get install python3-tabulate")
+
 
 # repo paths
 GLOBAL_CONFIG_FILE = Path("/etc/gitkeeper.conf")
@@ -47,7 +53,13 @@ def main(args):
     config = json.loads(GLOBAL_CONFIG_FILE.read_text())
     assert type(config) == list
 
+    # repo, status, remote
+    table = []
+
     for repo in config:
+        item = [repo, "?", "?"]
+        table.append(item)
+
         repo = Path(repo)
         # get repo dir owner
         uid = repo.stat().st_uid
@@ -70,7 +82,11 @@ def main(args):
                 untracked += 1
             else:
                 staged += 1
-        print(f"{repo}: {staged} staged, {untracked} untracked files")
+        # print(f"{repo}: {staged} staged, {untracked} untracked files")
+        if untracked or staged:
+            item[1] = f"{staged} staged, {untracked} untracked"
+        else:
+            item[1] = "clean"
 
         # get remote info
         ret, remote = run_git_command(repo, ["remote"], sudo_user=sudo_user)
@@ -79,7 +95,8 @@ def main(args):
             print(f"Error running git remote on {repo}")
             continue
         if not remote:
-            print(f"{repo} has no remote")
+            # print(f"{repo} has no remote")
+            item[2] = "N/A"
             continue
         else:
             # fetch
@@ -91,22 +108,29 @@ def main(args):
             if ret != 0:
                 print(f"Error running git rev-parse HEAD on {repo}")
                 continue
-            ret, remote_hash = run_git_command(repo, ["rev-parse", f"{remote}/HEAD"], sudo_user=sudo_user)
+            ret, remote_hash = run_git_command(repo, ["rev-parse", "@{u}"], sudo_user=sudo_user)
             if ret != 0:
                 print(f"Error running git rev-parse {remote}/HEAD on {repo}")
                 continue
-            ret, base_hash = run_git_command(repo, ["merge-base", "HEAD", f"{remote}/HEAD"], sudo_user=sudo_user)
+            ret, base_hash = run_git_command(repo, ["merge-base", "HEAD", "@{u}"], sudo_user=sudo_user)
             if ret != 0:
                 print(f"Error running git merge-base HEAD {remote}/HEAD on {repo}")
                 continue
+            msg = ""
             if local_hash == remote_hash:
-                print(f"{repo} is up to date")
+                # print(f"{repo} is up to date")
+                msg = "up to date"
             elif local_hash == base_hash:
-                print(f"{repo} needs to be pulled")
+                # print(f"{repo} needs to be pulled")
+                msg = "needs to be pulled"
             elif remote_hash == base_hash:
-                print(f"{repo} needs to be pushed")
+                # print(f"{repo} needs to be pushed")
+                msg = "needs to be pushed"
             else:
-                print(f"{repo} has diverged")
+                # print(f"{repo} has diverged")
+                msg = "has diverged"
+            item[2] = msg
+    print(tabulate.tabulate(table, headers=["Repo", "Status", "Remote"]))
 
 
 
