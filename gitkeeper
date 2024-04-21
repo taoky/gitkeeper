@@ -45,14 +45,15 @@ def run_git_command(
     sudo_user: str = None,
     raise_on_error: bool = True,
     raw: bool = False,
+    timeout: Optional[float] = None,
 ):
     if sudo_user:
         command = ["sudo", "-u", sudo_user] + command
     command = ["git"] + command
     if not raw:
-        p = subprocess.run(command, cwd=repo, stdout=subprocess.PIPE)
+        p = subprocess.run(command, cwd=repo, stdout=subprocess.PIPE, timeout=timeout)
     else:
-        p = subprocess.run(command, cwd=repo)
+        p = subprocess.run(command, cwd=repo, timeout=timeout)
     if raise_on_error and p.returncode != 0:
         raise GitRuntimeError(f"Error running {command} on {repo}", p.returncode)
     if not raw:
@@ -88,7 +89,7 @@ class LocalRemoteStatus(Enum):
 
 
 def fetch_and_compare(repo: Path, sudo_user: str) -> LocalRemoteStatus:
-    _ = run_git_command(repo, ["fetch"], sudo_user=sudo_user)
+    _ = run_git_command(repo, ["fetch"], sudo_user=sudo_user, timeout=30)
     local_hash, remote_hash, base_hash = compare_hashes(repo, sudo_user)
     if local_hash == remote_hash:
         return LocalRemoteStatus.UP_TO_DATE
