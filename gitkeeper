@@ -1,0 +1,125 @@
+#!/usr/bin/env python3
+import argparse
+import configparser
+import json
+import subprocess
+from pathlib import Path
+import os
+import pwd
+
+
+# repo paths
+GLOBAL_CONFIG_FILE = Path("/etc/gitkeeper.conf")
+# user email
+if os.environ.get("SUDO_USER"):
+    USER_CONFIG_FILE = pwd.getpwuid(os.environ["SUDO_UID"]).pw_dir + "/.gitkeeper.conf"
+else:
+    USER_CONFIG_FILE = Path.home() / ".gitkeeper.conf"
+
+
+def run_git_command(repo, command, sudo_user=None):
+    if sudo_user:
+        command = ["sudo", "-u", sudo_user] + command
+    command = ["git"] + command
+    p = subprocess.run(command, cwd=repo, stdout=subprocess.PIPE)
+    return (p.returncode, p.stdout.decode("utf-8"))
+
+
+def main(args):
+    current_uid = os.getuid()
+    if USER_CONFIG_FILE.exists():
+        config = configparser.ConfigParser()
+        config.read(USER_CONFIG_FILE)
+        user_email = config["user"]["email"]
+    else:
+        # ask for user email, save it to USER_CONFIG_FILE
+        user_email = input("Enter your email: ")
+        config = configparser.ConfigParser()
+        config["user"] = {"email": user_email}
+        with open(USER_CONFIG_FILE, "w") as f:
+            config.write(f)
+        print(f"You can change your email in {USER_CONFIG_FILE}")
+
+    if not GLOBAL_CONFIG_FILE.exists():
+        print(f"Global config file {GLOBAL_CONFIG_FILE} not found")
+        exit(1)
+
+    config = json.loads(GLOBAL_CONFIG_FILE.read_text())
+    assert type(config) == list
+
+    for repo in config:
+        repo = Path(repo)
+        # get repo dir owner
+        uid = repo.stat().st_uid
+        if uid != current_uid:
+            sudo_user = pwd.getpwuid(uid).pw_name
+        else:
+            sudo_user = None
+        # print status
+        ret, status = run_git_command(repo, ["status", "--porcelain=v1"], sudo_user=sudo_user)
+        if ret != 0:
+            print(f"Error running git status on {repo}")
+            continue
+        untracked = 0
+        staged = 0
+        for line in status.split("\n"):
+            if not line:
+                continue
+            status, file = line.split(" ", 1)
+            if status == "??":
+                untracked += 1
+            else:
+                staged += 1
+        print(f"{repo}: {staged} staged, {untracked} untracked files")
+
+        # get remote info
+        ret, remote = run_git_command(repo, ["remote"], sudo_user=sudo_user)
+        remote = remote.strip()
+        if ret != 0:
+            print(f"Error running git remote on {repo}")
+            continue
+        if not remote:
+            print(f"{repo} has no remote")
+            continue
+        else:
+            # fetch
+            ret, _ = run_git_command(repo, ["fetch"], sudo_user=sudo_user)
+            if ret != 0:
+                print(f"Error running git fetch on {repo}")
+                continue
+            ret, local_hash = run_git_command(repo, ["rev-parse", "HEAD"], sudo_user=sudo_user)
+            if ret != 0:
+                print(f"Error running git rev-parse HEAD on {repo}")
+                continue
+            ret, remote_hash = run_git_command(repo, ["rev-parse", f"{remote}/HEAD"], sudo_user=sudo_user)
+            if ret != 0:
+                print(f"Error running git rev-parse {remote}/HEAD on {repo}")
+                continue
+            ret, base_hash = run_git_command(repo, ["merge-base", "HEAD", f"{remote}/HEAD"], sudo_user=sudo_user)
+            if ret != 0:
+                print(f"Error running git merge-base HEAD {remote}/HEAD on {repo}")
+                continue
+            if local_hash == remote_hash:
+                print(f"{repo} is up to date")
+            elif local_hash == base_hash:
+                print(f"{repo} needs to be pulled")
+            elif remote_hash == base_hash:
+                print(f"{repo} needs to be pushed")
+            else:
+                print(f"{repo} has diverged")
+
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser("Track git repos")
+    subparsers = parser.add_subparsers(dest="command")
+    parser_status = subparsers.add_parser("status", help="Show status of repo(s)")
+    parser_status.add_argument("repo", nargs="*", help="Repo(s) to show status of")
+    parser_commit = subparsers.add_parser("commit", help="Commit changes in repo(s) on behalf of current user")
+    parser_commit.add_argument("repo", nargs="*", help="Repo(s) to commit changes in")
+    parser_git = subparsers.add_parser("vcs", help="Run a git command on repo(s)")
+    parser_git.add_argument("repo", nargs="*", help="Repo(s) to run git command on")
+
+    args = parser.parse_args()
+
+    main(args)
