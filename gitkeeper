@@ -89,6 +89,13 @@ class LocalRemoteStatus(Enum):
     DIVERGED = 4
 
 
+class RemoteType(Enum):
+    SSH = 1
+    HTTP = 2
+    NONE = 3
+    UNKNOWN = 4
+
+
 def fetch_and_compare(repo: Path, sudo_user: str) -> LocalRemoteStatus:
     _ = run_git_command(repo, ["fetch"], sudo_user=sudo_user, timeout=30)
     local_hash, remote_hash, base_hash = compare_hashes(repo, sudo_user)
@@ -102,10 +109,18 @@ def fetch_and_compare(repo: Path, sudo_user: str) -> LocalRemoteStatus:
         return LocalRemoteStatus.DIVERGED
 
 
-def has_remote(repo: Path, sudo_user: str) -> bool:
+def has_remote(repo: Path, sudo_user: str) -> RemoteType:
     remote = run_git_command(repo, ["remote"], sudo_user=sudo_user)
     remote = remote.strip()
-    return len(remote) > 0
+    if len(remote) == 0:
+        return RemoteType.NONE
+    url = run_git_command(repo, ["remote", "get-url", remote], sudo_user=sudo_user)
+    # ignore http(s) remotes
+    if url.startswith("http"):
+        return RemoteType.HTTP
+    if url.startswith("git@"):
+        return RemoteType.SSH
+    return RemoteType.UNKNOWN
 
 
 def get_status(repo: Path, sudo_user: str) -> Tuple[int, int]:
@@ -144,8 +159,14 @@ def status(config: dict, current_uid: int) -> None:
 
             # get remote info
             remote = has_remote(repo, sudo_user)
-            if not remote:
+            if remote == RemoteType.NONE:
                 item[3] = "N/A"
+                continue
+            elif remote == RemoteType.HTTP:
+                item[3] = "HTTP (ignored)"
+                continue
+            elif remote == RemoteType.UNKNOWN:
+                item[3] = "Unknown"
                 continue
             else:
                 status = fetch_and_compare(repo, sudo_user)
