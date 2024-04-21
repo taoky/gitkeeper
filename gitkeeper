@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 import argparse
 import configparser
+from enum import Enum
 import json
 import subprocess
 from pathlib import Path
 import os
 import pwd
-from typing import Optional
+from typing import Optional, Tuple
 
 # third-party deps
 try:
@@ -27,7 +28,15 @@ current_username = os.environ.get("SUDO_USER") or pwd.getpwuid(os.getuid()).pw_n
 
 
 class GitRuntimeError(RuntimeError):
-    pass
+    returncode: int
+    message: str
+
+    def __init__(self, message: str, returncode: int):
+        self.message = message
+        self.returncode = returncode
+    
+    def __str__(self):
+        return f"{self.message} (exit code {self.returncode})"
 
 
 def run_git_command(
@@ -35,18 +44,18 @@ def run_git_command(
     command: list,
     sudo_user: str = None,
     raise_on_error: bool = True,
-    editor: bool = False,
+    raw: bool = False,
 ):
     if sudo_user:
         command = ["sudo", "-u", sudo_user] + command
     command = ["git"] + command
-    if not editor:
+    if not raw:
         p = subprocess.run(command, cwd=repo, stdout=subprocess.PIPE)
     else:
         p = subprocess.run(command, cwd=repo)
     if raise_on_error and p.returncode != 0:
-        raise GitRuntimeError(f"Error running {command} on {repo}")
-    if not editor:
+        raise GitRuntimeError(f"Error running {command} on {repo}", p.returncode)
+    if not raw:
         stdout = p.stdout.decode("utf-8")
     else:
         stdout = None
@@ -62,68 +71,96 @@ def get_sudo_user(repo: Path, current_uid: int) -> Optional[str]:
     return None
 
 
+def compare_hashes(repo: Path, sudo_user: str):
+    local_hash = run_git_command(repo, ["rev-parse", "HEAD"], sudo_user=sudo_user)
+    remote_hash = run_git_command(repo, ["rev-parse", "@{u}"], sudo_user=sudo_user)
+    base_hash = run_git_command(
+        repo, ["merge-base", "HEAD", "@{u}"], sudo_user=sudo_user
+    )
+    return local_hash, remote_hash, base_hash
+
+
+class LocalRemoteStatus(Enum):
+    UP_TO_DATE = 1
+    NEEDS_PULL = 2
+    NEEDS_PUSH = 3
+    DIVERGED = 4
+
+
+def fetch_and_compare(repo: Path, sudo_user: str) -> LocalRemoteStatus:
+    _ = run_git_command(repo, ["fetch"], sudo_user=sudo_user)
+    local_hash, remote_hash, base_hash = compare_hashes(repo, sudo_user)
+    if local_hash == remote_hash:
+        return LocalRemoteStatus.UP_TO_DATE
+    elif local_hash == base_hash:
+        return LocalRemoteStatus.NEEDS_PULL
+    elif remote_hash == base_hash:
+        return LocalRemoteStatus.NEEDS_PUSH
+    else:
+        return LocalRemoteStatus.DIVERGED
+
+
+def has_remote(repo: Path, sudo_user: str) -> bool:
+    remote = run_git_command(repo, ["remote"], sudo_user=sudo_user)
+    remote = remote.strip()
+    return len(remote) > 0
+
+
+def get_status(repo: Path, sudo_user: str) -> Tuple[int, int]:
+    status = run_git_command(repo, ["status", "--porcelain=v1"], sudo_user=sudo_user)
+    untracked = 0
+    staged = 0
+    for line in status.split("\n"):
+        if not line:
+            continue
+        status, file = line.split(" ", 1)
+        if status == "??":
+            untracked += 1
+        else:
+            staged += 1
+    return (untracked, staged)
+
+
 def status(config: dict, current_uid: int) -> None:
     # repo, status, remote
     table = []
 
     for repo in config:
+        name = repo
         repo = config[repo]
-        item = [repo, "?", "?"]
+        item = [repo, name, "?", "?"]
         table.append(item)
 
         try:
             repo = Path(repo)
             sudo_user = get_sudo_user(repo, current_uid)
-            status = run_git_command(
-                repo, ["status", "--porcelain=v1"], sudo_user=sudo_user
-            )
-            untracked = 0
-            staged = 0
-            for line in status.split("\n"):
-                if not line:
-                    continue
-                status, file = line.split(" ", 1)
-                if status == "??":
-                    untracked += 1
-                else:
-                    staged += 1
+            untracked, staged = get_status(repo, sudo_user)
             if untracked or staged:
-                item[1] = f"❗ {staged} staged, {untracked} untracked"
+                item[2] = f"❗ {staged} staged, {untracked} untracked"
             else:
-                item[1] = "✅ clean"
+                item[2] = "✅ clean"
 
             # get remote info
-            remote = run_git_command(repo, ["remote"], sudo_user=sudo_user)
-            remote = remote.strip()
+            remote = has_remote(repo, sudo_user)
             if not remote:
-                item[2] = "N/A"
+                item[3] = "N/A"
                 continue
             else:
-                # fetch
-                _ = run_git_command(repo, ["fetch"], sudo_user=sudo_user)
-                local_hash = run_git_command(
-                    repo, ["rev-parse", "HEAD"], sudo_user=sudo_user
-                )
-                remote_hash = run_git_command(
-                    repo, ["rev-parse", "@{u}"], sudo_user=sudo_user
-                )
-                base_hash = run_git_command(
-                    repo, ["merge-base", "HEAD", "@{u}"], sudo_user=sudo_user
-                )
+                status = fetch_and_compare(repo, sudo_user)
                 msg = ""
-                if local_hash == remote_hash:
+                if status == LocalRemoteStatus.UP_TO_DATE:
                     msg = "✅ up to date"
-                elif local_hash == base_hash:
+                elif status == LocalRemoteStatus.NEEDS_PULL:
                     msg = "⬇️ needs pull"
-                elif remote_hash == base_hash:
+                elif status == LocalRemoteStatus.NEEDS_PUSH:
                     msg = "⬆️ needs push"
                 else:
                     msg = "🔀 diverged"
-                item[2] = msg
+                item[3] = msg
         except GitRuntimeError as e:
             print(e)
             continue
-    print(tabulate.tabulate(table, headers=["Repo", "Status", "Remote"]))
+    print(tabulate.tabulate(table, headers=["Repo", "Name", "Status", "Remote"]))
 
 
 def commit(repo: str, current_uid: int, user_name: str, user_email: str, args: list):
@@ -143,10 +180,45 @@ def commit(repo: str, current_uid: int, user_name: str, user_email: str, args: l
                 *args,
             ],
             sudo_user=sudo_user,
-            editor=True,
+            raw=True,
         )
     except GitRuntimeError as e:
         print(e)
+        exit(1)
+
+
+def update(config: dict, current_uid: int):
+    for repo_name in config:
+        try:
+            repo = Path(config[repo_name])
+            sudo_user = get_sudo_user(repo, current_uid)
+            status = fetch_and_compare(repo, sudo_user)
+            if status == LocalRemoteStatus.UP_TO_DATE:
+                continue
+            elif status == LocalRemoteStatus.NEEDS_PULL:
+                run_git_command(repo, ["pull"], sudo_user=sudo_user)
+                print(f"Pulled {repo}")
+            elif status == LocalRemoteStatus.NEEDS_PUSH:
+                run_git_command(repo, ["push"], sudo_user=sudo_user)
+                print(f"Pushed {repo}")
+            elif status == LocalRemoteStatus.DIVERGED:
+                print(f"Repo {repo} has diverged (requires manual intervention)")
+        except GitRuntimeError as e:
+            print(e)
+            continue
+
+
+def vcs(repo: str, current_uid: int, args: list):
+    try:
+        repo = Path(repo)
+        sudo_user = get_sudo_user(repo, current_uid)
+        run_git_command(repo, args, sudo_user=sudo_user, raw=True)
+    except GitRuntimeError as e:
+        print(e)
+        if e.returncode == -13:
+            # SIGPIPE, ignore
+            print("SIGPIPE, ignoring...")
+            exit(0)
         exit(1)
 
 
@@ -179,6 +251,18 @@ def main(args):
         repo = args.repo
         repo_path = config[repo]
         commit(repo_path, current_uid, user_name, user_email, args.args)
+    elif args.command == "update":
+        repo = args.repo
+        if repo:
+            new_config = {}
+            for r in repo:
+                new_config[r] = config[r]
+            config = new_config
+        update(config, current_uid)
+    elif args.command == "vcs":
+        repo = args.repo
+        repo_path = config[repo]
+        vcs(repo_path, current_uid, args.args)
 
 
 if __name__ == "__main__":
@@ -200,6 +284,7 @@ if __name__ == "__main__":
     parser_update.add_argument("repo", nargs="*", help="Repo(s) to push/pull")
     parser_git = subparsers.add_parser("vcs", help="Run a git command on repo(s)")
     parser_git.add_argument("repo", help="Repo(s) to run git command on")
+    parser_git.add_argument("args", nargs=argparse.REMAINDER, help="Arguments to git")
 
     args = parser.parse_args()
     if args.command is None:
