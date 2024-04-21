@@ -162,9 +162,6 @@ def status(config: dict, current_uid: int) -> None:
             if remote == RemoteType.NONE:
                 item[3] = "N/A"
                 continue
-            elif remote == RemoteType.HTTP:
-                item[3] = "HTTP (ignored)"
-                continue
             elif remote == RemoteType.UNKNOWN:
                 item[3] = "Unknown"
                 continue
@@ -215,6 +212,7 @@ def update(config: dict, current_uid: int):
         try:
             repo = Path(config[repo_name])
             sudo_user = get_sudo_user(repo, current_uid)
+            remote = has_remote(repo, sudo_user)
             status = fetch_and_compare(repo, sudo_user)
             if status == LocalRemoteStatus.UP_TO_DATE:
                 continue
@@ -222,6 +220,9 @@ def update(config: dict, current_uid: int):
                 run_git_command(repo, ["pull"], sudo_user=sudo_user)
                 print(f"Pulled {repo}")
             elif status == LocalRemoteStatus.NEEDS_PUSH:
+                if remote == RemoteType.HTTP:
+                    print(f"Repo {repo} has HTTP remote, skipping push")
+                    continue
                 run_git_command(repo, ["push"], sudo_user=sudo_user)
                 print(f"Pushed {repo}")
             elif status == LocalRemoteStatus.DIVERGED:
