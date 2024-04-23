@@ -8,14 +8,35 @@ Works like etckeeper, but tracks git repos specified instead of just `/etc`.
 sudo find / -name .git -type d -xdev 2>/dev/null
 ```
 
-## `/etc/gitkeeper.conf` example
+## Config example
 
-```json
-{
-    "rsyncd": "/etc/rsyncd",
-    "systemd-network": "/etc/systemd/network",
-}
+### `/etc/gitkeeper.conf`
+
+```ini
+[rsyncd]
+path = /etc/rsyncd
+
+[systemd-network]
+path = /etc/systemd/network
+
+[repos]
+path = /home/mirror/repos
+user = mirror
 ```
+
+By default gitkeeper would try to get the owner of specified folder and use it as the user to run git. You can specify a user in the config file to override this.
+
+### `~/.gitkeeper.conf`
+
+```ini
+[user]
+email = me@example.com
+name = example
+```
+
+Gitkeeper would ask your email if the file does not exist, and use username as name. You could override them in the config file.
+
+Note that if you use `sudo` to run gitkeeper, it would still use the config file in the home directory of the user (instead of root) who runs it.
 
 ## Practice of SSH deploy key
 

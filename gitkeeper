@@ -2,25 +2,41 @@
 import argparse
 import configparser
 from enum import Enum
-import json
 import subprocess
 from pathlib import Path
 import os
 import pwd
-from typing import Optional, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 # third-party deps
 try:
     import tabulate
 except ImportError:
-    print("Missing deps: apt-get install python3-tabulate")
+    print("Missing deps 'tabulate': apt-get install python3-tabulate")
+    exit(1)
+
+try:
+    # Python 3.8+
+    from typing import TypedDict
+except ImportError:
+    TypedDict = dict
 
 
-# repo paths
-GLOBAL_CONFIG_FILE = Path("/etc/gitkeeper.conf")
-# user email
+# user email & name config
+if TYPE_CHECKING:
+
+    class InnerUserConfigType(TypedDict):
+        path: Path
+        user: Optional[str]
+
+else:
+    InnerUserConfigType = Dict[str, str]
+
+UserConfigType = Dict[str, InnerUserConfigType]
 if os.environ.get("SUDO_USER"):
-    USER_CONFIG_FILE = pwd.getpwuid(os.environ["SUDO_UID"]).pw_dir + "/.gitkeeper.conf"
+    USER_CONFIG_FILE = Path(
+        pwd.getpwuid(int(os.environ["SUDO_UID"])).pw_dir + "/.gitkeeper.conf"
+    )
 else:
     USER_CONFIG_FILE = Path.home() / ".gitkeeper.conf"
 
@@ -34,19 +50,18 @@ class GitRuntimeError(RuntimeError):
     def __init__(self, message: str, returncode: int):
         self.message = message
         self.returncode = returncode
-    
-    def __str__(self):
+
+    def __str__(self) -> str:
         return f"{self.message} (exit code {self.returncode})"
 
 
-def run_git_command(
-    repo,
-    command: list,
-    sudo_user: str = None,
-    raise_on_error: bool = True,
+def _run_git_command(
+    repo: Path,
+    command: List[str],
+    sudo_user: Optional[str] = None,
     raw: bool = False,
     timeout: Optional[float] = None,
-):
+) -> Optional[str]:
     if sudo_user:
         command = ["sudo", "-u", sudo_user, "git"] + command
     else:
@@ -55,25 +70,43 @@ def run_git_command(
         p = subprocess.run(command, cwd=repo, stdout=subprocess.PIPE, timeout=timeout)
     else:
         p = subprocess.run(command, cwd=repo, timeout=timeout)
-    if raise_on_error and p.returncode != 0:
+    if p.returncode != 0:
         raise GitRuntimeError(f"Error running {command} on {repo}", p.returncode)
     if not raw:
         stdout = p.stdout.decode("utf-8")
     else:
         stdout = None
-    if raise_on_error:
-        return stdout
-    return (p.returncode, stdout)
+    return stdout
 
 
-def get_sudo_user(repo: Path, current_uid: int) -> Optional[str]:
-    uid = repo.stat().st_uid
+def run_git_command(
+    repo: Path,
+    command: List[str],
+    sudo_user: Optional[str] = None,
+    timeout: Optional[float] = None,
+) -> str:
+    return _run_git_command(repo, command, sudo_user, timeout=timeout)  # type: ignore
+
+
+def run_git_command_raw(
+    repo: Path,
+    command: List[str],
+    sudo_user: Optional[str] = None,
+    timeout: Optional[float] = None,
+) -> None:
+    _run_git_command(repo, command, sudo_user, raw=True, timeout=timeout)
+
+
+def get_sudo_user(repo: InnerUserConfigType, current_uid: int) -> Optional[str]:
+    if repo.get("user"):
+        return repo["user"]
+    uid = Path(repo["path"]).stat().st_uid
     if uid != current_uid:
         return pwd.getpwuid(uid).pw_name
     return None
 
 
-def compare_hashes(repo: Path, sudo_user: str):
+def compare_hashes(repo: Path, sudo_user: Optional[str]) -> Tuple[str, str, str]:
     local_hash = run_git_command(repo, ["rev-parse", "HEAD"], sudo_user=sudo_user)
     remote_hash = run_git_command(repo, ["rev-parse", "@{u}"], sudo_user=sudo_user)
     base_hash = run_git_command(
@@ -96,7 +129,7 @@ class RemoteType(Enum):
     UNKNOWN = 4
 
 
-def fetch_and_compare(repo: Path, sudo_user: str) -> LocalRemoteStatus:
+def fetch_and_compare(repo: Path, sudo_user: Optional[str]) -> LocalRemoteStatus:
     _ = run_git_command(repo, ["fetch"], sudo_user=sudo_user, timeout=30)
     local_hash, remote_hash, base_hash = compare_hashes(repo, sudo_user)
     if local_hash == remote_hash:
@@ -109,7 +142,7 @@ def fetch_and_compare(repo: Path, sudo_user: str) -> LocalRemoteStatus:
         return LocalRemoteStatus.DIVERGED
 
 
-def has_remote(repo: Path, sudo_user: str) -> RemoteType:
+def has_remote(repo: Path, sudo_user: Optional[str]) -> RemoteType:
     remote = run_git_command(repo, ["remote"], sudo_user=sudo_user)
     remote = remote.strip()
     if len(remote) == 0:
@@ -123,7 +156,7 @@ def has_remote(repo: Path, sudo_user: str) -> RemoteType:
     return RemoteType.UNKNOWN
 
 
-def get_status(repo: Path, sudo_user: str) -> Tuple[int, int]:
+def get_status(repo: Path, sudo_user: Optional[str]) -> Tuple[int, int]:
     status = run_git_command(repo, ["status", "--porcelain=v1"], sudo_user=sudo_user)
     untracked = 0
     staged = 0
@@ -138,27 +171,28 @@ def get_status(repo: Path, sudo_user: str) -> Tuple[int, int]:
     return (untracked, staged)
 
 
-def status(config: dict, current_uid: int) -> None:
+def status(config: UserConfigType, repos: List[str], current_uid: int) -> None:
     # repo, status, remote
     table = []
+    if not repos:
+        repos = list(config.keys())
 
-    for repo in config:
-        name = repo
-        repo = config[repo]
-        item = [repo, name, "?", "?"]
+    for repo_name in repos:
+        repo = config[repo_name]
+        repo_path = Path(repo["path"])
+        item = [repo_path, repo_name, "?", "?"]
         table.append(item)
 
         try:
-            repo = Path(repo)
             sudo_user = get_sudo_user(repo, current_uid)
-            untracked, staged = get_status(repo, sudo_user)
+            untracked, staged = get_status(repo_path, sudo_user)
             if untracked or staged:
                 item[2] = f"❗ {staged} staged, {untracked} untracked"
             else:
                 item[2] = "✅ clean"
 
             # get remote info
-            remote = has_remote(repo, sudo_user)
+            remote = has_remote(repo_path, sudo_user)
             if remote == RemoteType.NONE:
                 item[3] = "N/A"
                 continue
@@ -166,7 +200,7 @@ def status(config: dict, current_uid: int) -> None:
                 item[3] = "Unknown"
                 continue
             else:
-                status = fetch_and_compare(repo, sudo_user)
+                status = fetch_and_compare(repo_path, sudo_user)
                 msg = ""
                 if status == LocalRemoteStatus.UP_TO_DATE:
                     msg = "✅ up to date"
@@ -183,14 +217,20 @@ def status(config: dict, current_uid: int) -> None:
     print(tabulate.tabulate(table, headers=["Repo", "Name", "Status", "Remote"]))
 
 
-def commit(repo: str, current_uid: int, user_name: str, user_email: str, args: list):
+def commit(
+    repo: InnerUserConfigType,
+    current_uid: int,
+    user_name: str,
+    user_email: str,
+    args: List[str],
+) -> None:
     try:
-        repo = Path(repo)
         sudo_user = get_sudo_user(repo, current_uid)
+        repo_path = Path(repo["path"])
         # commit
-        run_git_command(repo, ["add", "."], sudo_user=sudo_user)
-        run_git_command(
-            repo,
+        run_git_command(repo_path, ["add", "."], sudo_user=sudo_user)
+        run_git_command_raw(
+            repo_path,
             [
                 "-c",
                 f"user.name={user_name}",
@@ -200,43 +240,43 @@ def commit(repo: str, current_uid: int, user_name: str, user_email: str, args: l
                 *args,
             ],
             sudo_user=sudo_user,
-            raw=True,
         )
     except GitRuntimeError as e:
         print(e)
         exit(1)
 
 
-def update(config: dict, current_uid: int):
+def update(config: UserConfigType, current_uid: int) -> None:
     for repo_name in config:
         try:
-            repo = Path(config[repo_name])
+            repo = config[repo_name]
             sudo_user = get_sudo_user(repo, current_uid)
-            remote = has_remote(repo, sudo_user)
-            status = fetch_and_compare(repo, sudo_user)
+            repo_path = Path(repo["path"])
+            remote = has_remote(repo_path, sudo_user)
+            status = fetch_and_compare(repo_path, sudo_user)
             if status == LocalRemoteStatus.UP_TO_DATE:
                 continue
             elif status == LocalRemoteStatus.NEEDS_PULL:
-                run_git_command(repo, ["pull"], sudo_user=sudo_user)
-                print(f"Pulled {repo}")
+                run_git_command(repo_path, ["pull"], sudo_user=sudo_user)
+                print(f"Pulled {repo_path}")
             elif status == LocalRemoteStatus.NEEDS_PUSH:
                 if remote == RemoteType.HTTP:
-                    print(f"Repo {repo} has HTTP remote, skipping push")
+                    print(f"Repo {repo_path} has HTTP remote, skipping push")
                     continue
-                run_git_command(repo, ["push"], sudo_user=sudo_user)
-                print(f"Pushed {repo}")
+                run_git_command(repo_path, ["push"], sudo_user=sudo_user)
+                print(f"Pushed {repo_path}")
             elif status == LocalRemoteStatus.DIVERGED:
-                print(f"Repo {repo} has diverged (requires manual intervention)")
+                print(f"Repo {repo_path} has diverged (requires manual intervention)")
         except GitRuntimeError as e:
             print(e)
             continue
 
 
-def vcs(repo: str, current_uid: int, args: list):
+def vcs(repo: InnerUserConfigType, current_uid: int, args: List[str]) -> None:
     try:
-        repo = Path(repo)
         sudo_user = get_sudo_user(repo, current_uid)
-        run_git_command(repo, args, sudo_user=sudo_user, raw=True)
+        repo_path = Path(repo["path"])
+        run_git_command_raw(repo_path, args, sudo_user=sudo_user)
     except GitRuntimeError as e:
         print(e)
         if e.returncode == -13:
@@ -246,74 +286,93 @@ def vcs(repo: str, current_uid: int, args: list):
         exit(1)
 
 
-def main(args):
+def main(args: argparse.Namespace) -> None:
     current_uid = os.getuid()
     if USER_CONFIG_FILE.exists():
-        config = configparser.ConfigParser()
-        config.read(USER_CONFIG_FILE)
-        user_email = config["user"]["email"]
+        parser = configparser.ConfigParser()
+        parser.read(USER_CONFIG_FILE)
+        user_email = parser["user"]["email"]
     else:
         # ask for user email, save it to USER_CONFIG_FILE
         user_email = input("Enter your email: ")
-        config = configparser.ConfigParser()
-        config["user"] = {"email": user_email}
+        parser = configparser.ConfigParser()
+        parser["user"] = {"email": user_email}
         with open(USER_CONFIG_FILE, "w") as f:
-            config.write(f)
+            parser.write(f)
         print(f"You can change your email in {USER_CONFIG_FILE}")
-    user_name = config["user"].get("name", current_username)
+    user_name = parser["user"].get("name", current_username)
 
-    if not GLOBAL_CONFIG_FILE.exists():
-        print(f"Global config file {GLOBAL_CONFIG_FILE} not found")
+    if not args.config.exists():
+        print(f"Global config file {args.config} not found")
         exit(1)
 
-    config = json.loads(GLOBAL_CONFIG_FILE.read_text())
-    assert type(config) == dict
+    parser = configparser.ConfigParser()
+    parser.read(args.config)
+    _config = {k: dict(parser.items(k)) for k in parser.sections()}
+    # check if config is valid
+    config: UserConfigType = {}
+    for repo_name in _config:
+        config[repo_name] = {}  # type: ignore
+        config[repo_name]["path"] = Path(_config[repo_name]["path"])
+        if _config[repo_name].get("user"):
+            config[repo_name]["user"] = _config[repo_name]["user"]
 
+    repos: List[str]
     if args.command == "status":
-        status(config, current_uid)
+        repos = args.repos
+        status(config, repos, current_uid)
     elif args.command == "commit":
-        repo = args.repo
-        repo_path = config[repo]
-        commit(repo_path, current_uid, user_name, user_email, args.args)
+        repo_name = args.repo
+        repo = config[repo_name]
+        commit(repo, current_uid, user_name, user_email, args.args)
     elif args.command == "update":
-        repo = args.repo
-        if repo:
-            new_config = {}
-            for r in repo:
-                new_config[r] = config[r]
+        repos = args.repos
+        if repos:
+            new_config: UserConfigType = {}
+            for repo_name in repos:
+                new_config[repo_name] = config[repo_name]
             config = new_config
         update(config, current_uid)
     elif args.command == "vcs":
-        repo = args.repo
-        repo_path = config[repo]
-        vcs(repo_path, current_uid, args.args)
+        repo_name = args.repo
+        repo = config[repo_name]
+        vcs(repo, current_uid, args.args)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("Track git repos")
-    parser.add_argument("--config", "-c", help="Path to config file", default=None)
+    parser.add_argument(
+        "--config",
+        "-c",
+        help="Path to config file",
+        default="/etc/gitkeeper.conf",
+        type=Path,
+    )
     subparsers = parser.add_subparsers(dest="command")
+
     parser_status = subparsers.add_parser("status", help="Show status of repo(s)")
-    parser_status.add_argument("repo", nargs="*", help="Repo(s) to show status of")
+    parser_status.add_argument("repos", nargs="*", help="Repo(s) to show status of")
+
     parser_commit = subparsers.add_parser(
         "commit", help="Add all and commit changes in repo(s) on behalf of current user"
     )
-    parser_commit.add_argument("repo", help="Repo(s) to commit changes in")
+    parser_commit.add_argument("repo", help="The repo to commit changes in")
     parser_commit.add_argument(
         "args", nargs=argparse.REMAINDER, help="Arguments appended to git commit"
     )
+
     parser_update = subparsers.add_parser(
         "update", help="Push/pull repo(s) with remote"
     )
-    parser_update.add_argument("repo", nargs="*", help="Repo(s) to push/pull")
-    parser_git = subparsers.add_parser("vcs", help="Run a git command on repo(s)")
-    parser_git.add_argument("repo", help="Repo(s) to run git command on")
-    parser_git.add_argument("args", nargs=argparse.REMAINDER, help="Arguments to git")
+    parser_update.add_argument("repos", nargs="*", help="Repo(s) to push/pull")
+
+    parser_vcs = subparsers.add_parser("vcs", help="Run a git command on repo(s)")
+    parser_vcs.add_argument("repo", help="The repo to run git command on")
+    parser_vcs.add_argument("args", nargs=argparse.REMAINDER, help="Arguments to git")
 
     args = parser.parse_args()
     if args.command is None:
         args.command = "status"
-    if args.config:
-        GLOBAL_CONFIG_FILE = Path(args.config)
+        args.repos = []
 
     main(args)
