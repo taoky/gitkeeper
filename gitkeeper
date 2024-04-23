@@ -6,6 +6,7 @@ import subprocess
 from pathlib import Path
 import os
 import pwd
+import signal
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 # third-party deps
@@ -70,7 +71,7 @@ def _run_git_command(
         p = subprocess.run(command, cwd=repo, stdout=subprocess.PIPE, timeout=timeout)
     else:
         p = subprocess.run(command, cwd=repo, timeout=timeout)
-    if p.returncode != 0:
+    if p.returncode != 0 and p.returncode != -signal.SIGPIPE:
         raise GitRuntimeError(f"Error running {command} on {repo}", p.returncode)
     if not raw:
         stdout = p.stdout.decode("utf-8")
@@ -279,10 +280,6 @@ def vcs(repo: InnerUserConfigType, current_uid: int, args: List[str]) -> None:
         run_git_command_raw(repo_path, args, sudo_user=sudo_user)
     except GitRuntimeError as e:
         print(e)
-        if e.returncode == -13:
-            # SIGPIPE, ignore
-            print("SIGPIPE, ignoring...")
-            exit(0)
         exit(1)
 
 
