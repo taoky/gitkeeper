@@ -394,9 +394,14 @@ if __name__ == "__main__":
     parser_diff = subparsers.add_parser("diff", help="Show changes in given repo")
     parser_diff.add_argument("repo", help="The repo to show diff of")
 
+    parser_help = subparsers.add_parser("help", help="Show help")
+
     args = parser.parse_args()
     if args.command is None:
         args.command = "status"
         args.repos = []
+    elif args.command == "help":
+        parser.print_help()
+        exit(0)
 
     main(args)
