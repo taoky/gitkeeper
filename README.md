@@ -2,6 +2,28 @@
 
 Works like etckeeper, but tracks git repos specified instead of just `/etc`.
 
+## Help
+
+```console
+$ gitkeeper help
+usage: Track git repos [-h] [--config CONFIG] {status,commit,update,vcs,ls,diff,help} ...
+
+positional arguments:
+  {status,commit,update,vcs,ls,diff,help}
+    status              Show status of repo(s)
+    commit              Add all and commit changes in repo(s) on behalf of current user
+    update              Push/pull repo(s) with remote
+    vcs                 Run a git command on repo(s)
+    ls                  Just list all repos
+    diff                Show changes in given repo
+    help                Show help
+
+options:
+  -h, --help            show this help message and exit
+  --config CONFIG, -c CONFIG
+                        Path to config file
+```
+
 ## Finding all git repos
 
 ```bash
