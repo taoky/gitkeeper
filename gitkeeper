@@ -283,6 +283,22 @@ def vcs(repo: InnerUserConfigType, current_uid: int, args: List[str]) -> None:
         exit(1)
 
 
+def diff(repo: InnerUserConfigType, current_uid: int) -> None:
+    try:
+        sudo_user = get_sudo_user(repo, current_uid)
+        repo_path = Path(repo["path"])
+        # 1. Show git status output
+        run_git_command_raw(repo_path, ["status"], sudo_user=sudo_user)
+        input("Press enter to show `git diff`")
+        # 2. Show git diff output
+        run_git_command_raw(repo_path, ["diff"], sudo_user=sudo_user)
+    except GitRuntimeError as e:
+        print(e)
+        exit(1)
+    except KeyboardInterrupt:
+        pass
+
+
 def main(args: argparse.Namespace) -> None:
     current_uid = os.getuid()
     if USER_CONFIG_FILE.exists():
@@ -336,6 +352,11 @@ def main(args: argparse.Namespace) -> None:
         vcs(repo, current_uid, args.args)
     elif args.command == "ls":
         print("\n".join(config.keys()))
+    elif args.command == "diff":
+        repo_name = args.repo
+        repo = config[repo_name]
+        diff(repo, current_uid)
+
 
 
 if __name__ == "__main__":
@@ -370,6 +391,8 @@ if __name__ == "__main__":
     parser_vcs.add_argument("args", nargs=argparse.REMAINDER, help="Arguments to git")
 
     parser_ls = subparsers.add_parser("ls", help="Just list all repos")
+    parser_diff = subparsers.add_parser("diff", help="Show changes in given repo")
+    parser_diff.add_argument("repo", help="The repo to show diff of")
 
     args = parser.parse_args()
     if args.command is None:
