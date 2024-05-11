@@ -334,6 +334,8 @@ def main(args: argparse.Namespace) -> None:
         repo_name = args.repo
         repo = config[repo_name]
         vcs(repo, current_uid, args.args)
+    elif args.command == "ls":
+        print("\n".join(config.keys()))
 
 
 if __name__ == "__main__":
@@ -366,6 +368,8 @@ if __name__ == "__main__":
     parser_vcs = subparsers.add_parser("vcs", help="Run a git command on repo(s)")
     parser_vcs.add_argument("repo", help="The repo to run git command on")
     parser_vcs.add_argument("args", nargs=argparse.REMAINDER, help="Arguments to git")
+
+    parser_ls = subparsers.add_parser("ls", help="Just list all repos")
 
     args = parser.parse_args()
     if args.command is None:
