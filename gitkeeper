@@ -164,7 +164,7 @@ def get_status(repo: Path, sudo_user: Optional[str]) -> Tuple[int, int]:
     for line in status.split("\n"):
         if not line:
             continue
-        status, file = line.split(" ", 1)
+        status = line[:2]
         if status == "??":
             untracked += 1
         else:
