@@ -24,6 +24,10 @@ options:
                         Path to config file
 ```
 
+## Example
+
+![Screenshot](assets/example.png)
+
 ## Finding all git repos
 
 ```bash
