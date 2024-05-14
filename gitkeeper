@@ -259,6 +259,8 @@ def update(config: UserConfigType, current_uid: int) -> None:
                 continue
             elif status == LocalRemoteStatus.NEEDS_PULL:
                 run_git_command(repo_path, ["pull"], sudo_user=sudo_user)
+                # update submodules, if any
+                run_git_command(repo_path, ["submodule", "update", "--init", "--recursive"], sudo_user=sudo_user)
                 print(f"Pulled {repo_path}")
             elif status == LocalRemoteStatus.NEEDS_PUSH:
                 if remote == RemoteType.HTTP:
