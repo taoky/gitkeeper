@@ -2,6 +2,15 @@
 
 Works like etckeeper, but tracks git repos specified instead of just `/etc`.
 
+## Install
+
+```shell
+sudo wget https://github.com/taoky/gitkeeper/raw/master/gitkeeper -O /usr/local/bin/gitkeeper
+sudo chmod +x /usr/local/bin/gitkeeper
+```
+
+And then create `/etc/gitkeeper.conf` with repos you need to track.
+
 ## Help
 
 ```console
