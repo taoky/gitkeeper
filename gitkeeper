@@ -143,12 +143,15 @@ def fetch_and_compare(repo: Path, sudo_user: Optional[str]) -> LocalRemoteStatus
         return LocalRemoteStatus.DIVERGED
 
 
-def has_remote(repo: Path, sudo_user: Optional[str]) -> RemoteType:
+def has_remote(repo: Path, sudo_user: Optional[str], push: bool = False) -> RemoteType:
     remote = run_git_command(repo, ["remote"], sudo_user=sudo_user)
     remote = remote.strip()
     if len(remote) == 0:
         return RemoteType.NONE
-    url = run_git_command(repo, ["remote", "get-url", remote], sudo_user=sudo_user)
+    if not push:
+        url = run_git_command(repo, ["remote", "get-url", remote], sudo_user=sudo_user)
+    else:
+        url = run_git_command(repo, ["remote", "get-url", "--push", remote], sudo_user=sudo_user)
     # ignore http(s) remotes
     if url.startswith("http"):
         return RemoteType.HTTP
@@ -253,7 +256,7 @@ def update(config: UserConfigType, current_uid: int) -> None:
             repo = config[repo_name]
             sudo_user = get_sudo_user(repo, current_uid)
             repo_path = Path(repo["path"])
-            remote = has_remote(repo_path, sudo_user)
+            push_remote = has_remote(repo_path, sudo_user, push=True)
             status = fetch_and_compare(repo_path, sudo_user)
             if status == LocalRemoteStatus.UP_TO_DATE:
                 continue
@@ -263,7 +266,7 @@ def update(config: UserConfigType, current_uid: int) -> None:
                 run_git_command(repo_path, ["submodule", "update", "--init", "--recursive"], sudo_user=sudo_user)
                 print(f"Pulled {repo_path}")
             elif status == LocalRemoteStatus.NEEDS_PUSH:
-                if remote == RemoteType.HTTP:
+                if push_remote == RemoteType.HTTP:
                     print(f"Repo {repo_path} has HTTP remote, skipping push")
                     continue
                 run_git_command(repo_path, ["push"], sudo_user=sudo_user)
