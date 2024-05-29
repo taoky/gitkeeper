@@ -11,6 +11,12 @@ sudo chmod +x /usr/local/bin/gitkeeper
 
 And then create `/etc/gitkeeper.conf` with repos you need to track.
 
+If you're using bash, you could download the completion script:
+
+```shell
+sudo wget https://github.com/taoky/gitkeeper/raw/master/completions/gitkeeper.completion.bash -O /etc/bash_completion.d/gitkeeper
+```
+
 ## Help
 
 ```console
