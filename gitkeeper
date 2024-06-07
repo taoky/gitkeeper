@@ -67,10 +67,13 @@ def _run_git_command(
         command = ["sudo", "-u", sudo_user, "git"] + command
     else:
         command = ["git"] + command
-    if not raw:
-        p = subprocess.run(command, cwd=repo, stdout=subprocess.PIPE, timeout=timeout)
-    else:
-        p = subprocess.run(command, cwd=repo, timeout=timeout)
+    try:
+        if not raw:
+            p = subprocess.run(command, cwd=repo, stdout=subprocess.PIPE, timeout=timeout)
+        else:
+            p = subprocess.run(command, cwd=repo, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        raise GitRuntimeError(f"Timeout running {command} on {repo}", -signal.SIGKILL)
     if p.returncode != 0 and p.returncode != -signal.SIGPIPE:
         raise GitRuntimeError(f"Error running {command} on {repo}", p.returncode)
     if not raw:
