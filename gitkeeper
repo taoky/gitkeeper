@@ -133,8 +133,9 @@ class RemoteType(Enum):
     UNKNOWN = 4
 
 
-def fetch_and_compare(repo: Path, sudo_user: Optional[str]) -> LocalRemoteStatus:
-    _ = run_git_command(repo, ["fetch"], sudo_user=sudo_user, timeout=30)
+def fetch_and_compare(repo: Path, sudo_user: Optional[str], fetch: bool = True) -> LocalRemoteStatus:
+    if fetch:
+        _ = run_git_command(repo, ["fetch"], sudo_user=sudo_user, timeout=30)
     local_hash, remote_hash, base_hash = compare_hashes(repo, sudo_user)
     if local_hash == remote_hash:
         return LocalRemoteStatus.UP_TO_DATE
@@ -178,7 +179,7 @@ def get_status(repo: Path, sudo_user: Optional[str]) -> Tuple[int, int]:
     return (untracked, staged)
 
 
-def status(config: UserConfigType, repos: List[str], current_uid: int) -> None:
+def status(config: UserConfigType, repos: List[str], current_uid: int, no_fetch: bool) -> None:
     # repo, status, remote
     table = []
     if not repos:
@@ -207,7 +208,7 @@ def status(config: UserConfigType, repos: List[str], current_uid: int) -> None:
                 item[3] = "Unknown"
                 continue
             else:
-                status = fetch_and_compare(repo_path, sudo_user)
+                status = fetch_and_compare(repo_path, sudo_user, not no_fetch)
                 msg = ""
                 if status == LocalRemoteStatus.UP_TO_DATE:
                     msg = "✅ up to date"
@@ -341,7 +342,8 @@ def main(args: argparse.Namespace) -> None:
     repos: List[str]
     if args.command == "status":
         repos = args.repos
-        status(config, repos, current_uid)
+        no_fetch = args.no_fetch
+        status(config, repos, current_uid, no_fetch)
     elif args.command == "commit":
         repo_name = args.repo
         repo = config[repo_name]
@@ -380,6 +382,7 @@ if __name__ == "__main__":
 
     parser_status = subparsers.add_parser("status", help="Show status of repo(s)")
     parser_status.add_argument("repos", nargs="*", help="Repo(s) to show status of")
+    parser_status.add_argument("--no-fetch", action="store_true", help="Don't fetch remote")
 
     parser_commit = subparsers.add_parser(
         "commit", help="Add all and commit changes in repo(s) on behalf of current user"
