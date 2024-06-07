@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 import argparse
 import configparser
 from enum import Enum
@@ -303,9 +304,9 @@ def diff(repo: InnerUserConfigType, current_uid: int) -> None:
         repo_path = Path(repo["path"])
         # 1. Show git status output
         run_git_command_raw(repo_path, ["status"], sudo_user=sudo_user)
-        input("Press enter to show `git diff`")
-        # 2. Show git diff output
-        run_git_command_raw(repo_path, ["diff"], sudo_user=sudo_user)
+        input("Press enter to show `git diff HEAD`")
+        # 2. Show git diff HEAD output
+        run_git_command_raw(repo_path, ["diff", "HEAD"], sudo_user=sudo_user)
     except GitRuntimeError as e:
         print(e)
         exit(1)
