@@ -103,7 +103,12 @@ def run_git_command_raw(
 
 def get_sudo_user(repo: InnerUserConfigType, current_uid: int) -> Optional[str]:
     if repo.get("user"):
-        return repo["user"]
+        username = repo["user"]
+        uid = pwd.getpwnam(username).pw_uid
+        if uid != current_uid:
+            return username
+        else:
+            return None
     uid = Path(repo["path"]).stat().st_uid
     if uid != current_uid:
         return pwd.getpwuid(uid).pw_name
