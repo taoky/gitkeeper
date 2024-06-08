@@ -21,7 +21,7 @@ sudo wget https://github.com/taoky/gitkeeper/raw/master/completions/gitkeeper.co
 
 ```console
 $ gitkeeper help
-usage: Track git repos [-h] [--config CONFIG] {status,commit,update,vcs,ls,diff,help} ...
+usage: Track git repos [-h] [--config CONFIG] [--parallel PARALLEL] {status,commit,update,vcs,ls,diff,help} ...
 
 positional arguments:
   {status,commit,update,vcs,ls,diff,help}
@@ -37,7 +37,11 @@ options:
   -h, --help            show this help message and exit
   --config CONFIG, -c CONFIG
                         Path to config file
+  --parallel PARALLEL, -p PARALLEL
+                        Threads to use for status and update commands
 ```
+
+`PARALLEL` defaults to 8.
 
 ## Example
 
