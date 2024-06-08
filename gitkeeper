@@ -8,7 +8,8 @@ from pathlib import Path
 import os
 import pwd
 import signal
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Any
+from concurrent.futures import ThreadPoolExecutor
 
 # third-party deps
 try:
@@ -70,7 +71,9 @@ def _run_git_command(
         command = ["git"] + command
     try:
         if not raw:
-            p = subprocess.run(command, cwd=repo, stdout=subprocess.PIPE, timeout=timeout)
+            p = subprocess.run(
+                command, cwd=repo, stdout=subprocess.PIPE, timeout=timeout
+            )
         else:
             p = subprocess.run(command, cwd=repo, timeout=timeout)
     except subprocess.TimeoutExpired:
@@ -103,8 +106,8 @@ def run_git_command_raw(
 
 
 def get_sudo_user(repo: InnerUserConfigType, current_uid: int) -> Optional[str]:
-    if repo.get("user"):
-        username = repo["user"]
+    username = repo.get("user")
+    if username:
         uid = pwd.getpwnam(username).pw_uid
         if uid != current_uid:
             return username
@@ -139,7 +142,9 @@ class RemoteType(Enum):
     UNKNOWN = 4
 
 
-def fetch_and_compare(repo: Path, sudo_user: Optional[str], fetch: bool = True) -> LocalRemoteStatus:
+def fetch_and_compare(
+    repo: Path, sudo_user: Optional[str], fetch: bool = True
+) -> LocalRemoteStatus:
     if fetch:
         _ = run_git_command(repo, ["fetch"], sudo_user=sudo_user, timeout=30)
     local_hash, remote_hash, base_hash = compare_hashes(repo, sudo_user)
@@ -161,7 +166,9 @@ def has_remote(repo: Path, sudo_user: Optional[str], push: bool = False) -> Remo
     if not push:
         url = run_git_command(repo, ["remote", "get-url", remote], sudo_user=sudo_user)
     else:
-        url = run_git_command(repo, ["remote", "get-url", "--push", remote], sudo_user=sudo_user)
+        url = run_git_command(
+            repo, ["remote", "get-url", "--push", remote], sudo_user=sudo_user
+        )
     # ignore http(s) remotes
     if url.startswith("http"):
         return RemoteType.HTTP
@@ -185,34 +192,36 @@ def get_status(repo: Path, sudo_user: Optional[str]) -> Tuple[int, int]:
     return (untracked, staged)
 
 
-def status(config: UserConfigType, repos: List[str], current_uid: int, no_fetch: bool) -> None:
-    # repo, status, remote
-    table = []
+def status(
+    config: UserConfigType,
+    repos: List[str],
+    current_uid: int,
+    no_fetch: bool,
+    threads: int,
+) -> None:
     if not repos:
         repos = list(config.keys())
 
-    for repo_name in repos:
+    def get_single_status(repo_name: str) -> Tuple[Path, str, str, str]:
         repo = config[repo_name]
         repo_path = Path(repo["path"])
-        item = [repo_path, repo_name, "?", "?"]
-        table.append(item)
+        status_str = "?"
+        remote_str = "?"
 
         try:
             sudo_user = get_sudo_user(repo, current_uid)
             untracked, staged = get_status(repo_path, sudo_user)
             if untracked or staged:
-                item[2] = f"❗ {staged} staged, {untracked} untracked"
+                status_str = f"❗ {staged} staged, {untracked} untracked"
             else:
-                item[2] = "✅ clean"
+                status_str = "✅ clean"
 
             # get remote info
             remote = has_remote(repo_path, sudo_user)
             if remote == RemoteType.NONE:
-                item[3] = "N/A"
-                continue
+                remote_str = "N/A"
             elif remote == RemoteType.UNKNOWN:
-                item[3] = "Unknown"
-                continue
+                remote_str = "Unknown"
             else:
                 status = fetch_and_compare(repo_path, sudo_user, not no_fetch)
                 msg = ""
@@ -224,10 +233,15 @@ def status(config: UserConfigType, repos: List[str], current_uid: int, no_fetch:
                     msg = "⬆️ needs push"
                 else:
                     msg = "🔀 diverged"
-                item[3] = msg
+                remote_str = msg
         except GitRuntimeError as e:
             print(e)
-            continue
+
+        return (repo_path, repo_name, status_str, remote_str)
+
+    with ThreadPoolExecutor(max_workers=threads) as executor:
+        table = list(executor.map(get_single_status, repos))
+
     print(tabulate.tabulate(table, headers=["Repo", "Name", "Status", "Remote"]))
 
 
@@ -260,8 +274,8 @@ def commit(
         exit(1)
 
 
-def update(config: UserConfigType, current_uid: int) -> None:
-    for repo_name in config:
+def update(config: UserConfigType, current_uid: int, threads: int) -> None:
+    def update_single(repo_name: str) -> None:
         try:
             repo = config[repo_name]
             sudo_user = get_sudo_user(repo, current_uid)
@@ -269,23 +283,29 @@ def update(config: UserConfigType, current_uid: int) -> None:
             push_remote = has_remote(repo_path, sudo_user, push=True)
             status = fetch_and_compare(repo_path, sudo_user)
             if status == LocalRemoteStatus.UP_TO_DATE:
-                continue
+                return
             elif status == LocalRemoteStatus.NEEDS_PULL:
                 run_git_command(repo_path, ["pull"], sudo_user=sudo_user)
                 # update submodules, if any
-                run_git_command(repo_path, ["submodule", "update", "--init", "--recursive"], sudo_user=sudo_user)
+                run_git_command(
+                    repo_path,
+                    ["submodule", "update", "--init", "--recursive"],
+                    sudo_user=sudo_user,
+                )
                 print(f"Pulled {repo_path}")
             elif status == LocalRemoteStatus.NEEDS_PUSH:
                 if push_remote == RemoteType.HTTP:
                     print(f"Repo {repo_path} has HTTP remote, skipping push")
-                    continue
+                    return
                 run_git_command(repo_path, ["push"], sudo_user=sudo_user)
                 print(f"Pushed {repo_path}")
             elif status == LocalRemoteStatus.DIVERGED:
                 print(f"Repo {repo_path} has diverged (requires manual intervention)")
         except GitRuntimeError as e:
             print(e)
-            continue
+
+    with ThreadPoolExecutor(max_workers=threads) as executor:
+        executor.map(update_single, config.keys())
 
 
 def vcs(repo: InnerUserConfigType, current_uid: int, args: List[str]) -> None:
@@ -344,12 +364,13 @@ def main(args: argparse.Namespace) -> None:
         config[repo_name]["path"] = Path(_config[repo_name]["path"])
         if _config[repo_name].get("user"):
             config[repo_name]["user"] = _config[repo_name]["user"]
+    threads = args.parallel
 
     repos: List[str]
     if args.command == "status":
         repos = args.repos
         no_fetch = args.no_fetch
-        status(config, repos, current_uid, no_fetch)
+        status(config, repos, current_uid, no_fetch, threads)
     elif args.command == "commit":
         repo_name = args.repo
         repo = config[repo_name]
@@ -361,7 +382,7 @@ def main(args: argparse.Namespace) -> None:
             for repo_name in repos:
                 new_config[repo_name] = config[repo_name]
             config = new_config
-        update(config, current_uid)
+        update(config, current_uid, threads)
     elif args.command == "vcs":
         repo_name = args.repo
         repo = config[repo_name]
@@ -374,7 +395,6 @@ def main(args: argparse.Namespace) -> None:
         diff(repo, current_uid)
 
 
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("Track git repos")
     parser.add_argument(
@@ -384,11 +404,20 @@ if __name__ == "__main__":
         default="/etc/gitkeeper.conf",
         type=Path,
     )
+    parser.add_argument(
+        "--parallel",
+        "-p",
+        help="Threads to use for status and update commands",
+        default=8,
+        type=int,
+    )
     subparsers = parser.add_subparsers(dest="command")
 
     parser_status = subparsers.add_parser("status", help="Show status of repo(s)")
     parser_status.add_argument("repos", nargs="*", help="Repo(s) to show status of")
-    parser_status.add_argument("--no-fetch", action="store_true", help="Don't fetch remote")
+    parser_status.add_argument(
+        "--no-fetch", action="store_true", help="Don't fetch remote"
+    )
 
     parser_commit = subparsers.add_parser(
         "commit", help="Add all and commit changes in repo(s) on behalf of current user"
