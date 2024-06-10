@@ -196,6 +196,10 @@ def get_status(repo: Path, sudo_user: Optional[str]) -> Tuple[int, int]:
     return (untracked, staged)
 
 
+def get_user_args(user_name: str, user_email: str) -> List[str]:
+    return ["-c", f"user.name={user_name}", "-c", f"user.email={user_email}"]
+
+
 def status(
     config: UserConfigType,
     repos: List[str],
@@ -263,14 +267,7 @@ def commit(
         run_git_command(repo_path, ["add", "."], sudo_user=sudo_user)
         run_git_command_raw(
             repo_path,
-            [
-                "-c",
-                f"user.name={user_name}",
-                "-c",
-                f"user.email={user_email}",
-                "commit",
-                *args,
-            ],
+            get_user_args(user_name, user_email) + ["commit"] + args,
             sudo_user=sudo_user,
         )
     except GitRuntimeError as e:
@@ -312,11 +309,21 @@ def update(config: UserConfigType, current_uid: int, threads: int) -> None:
         executor.map(update_single, config.keys())
 
 
-def vcs(repo: InnerUserConfigType, current_uid: int, args: List[str]) -> None:
+def vcs(
+    repo: InnerUserConfigType,
+    current_uid: int,
+    user_name: str,
+    user_email: str,
+    args: List[str],
+) -> None:
     try:
         sudo_user = get_sudo_user(repo, current_uid)
         repo_path = Path(repo["path"])
-        run_git_command_raw(repo_path, args, sudo_user=sudo_user)
+        run_git_command_raw(
+            repo_path,
+            get_user_args(user_name, user_email) + args,
+            sudo_user=sudo_user,
+        )
     except GitRuntimeError as e:
         print(e)
         sys.exit(1)
@@ -390,7 +397,7 @@ def main(args: argparse.Namespace) -> None:
     elif args.command == "vcs":
         repo_name = args.repo
         repo = config[repo_name]
-        vcs(repo, current_uid, args.args)
+        vcs(repo, current_uid, user_name, user_email, args.args)
     elif args.command == "ls":
         print("\n".join(config.keys()))
     elif args.command == "diff":
