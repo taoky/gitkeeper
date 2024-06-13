@@ -218,15 +218,26 @@ def find_git_toplevel() -> Optional[Path]:
     return None
 
 
+def repo_name_check(repo_name: str, config: UserConfigType) -> None:
+    if not config.get(repo_name):
+        print(f"Repo {repo_name} not found in config")
+        sys.exit(1)
+
+
+def repo_names_check(repo_names: List[str], config: UserConfigType) -> None:
+    for repo_name in repo_names:
+        repo_name_check(repo_name, config)
+
+
 def status(
     config: UserConfigType,
-    repos: List[str],
+    repo_names: List[str],
     current_uid: int,
     no_fetch: bool,
     threads: int,
 ) -> None:
-    if not repos:
-        repos = list(config.keys())
+    if not repo_names:
+        repo_names = list(config.keys())
 
     def get_single_status(repo_name: str) -> Tuple[Path, str, str, str]:
         repo = config[repo_name]
@@ -266,7 +277,7 @@ def status(
         return (repo_path, repo_name, status_str, remote_str)
 
     with ThreadPoolExecutor(max_workers=threads) as executor:
-        table = list(executor.map(get_single_status, repos))
+        table = list(executor.map(get_single_status, repo_names))
 
     print(tabulate.tabulate(table, headers=["Repo", "Name", "Status", "Remote"]))
 
@@ -405,31 +416,41 @@ def main(args: argparse.Namespace) -> None:
 
     threads = args.parallel
 
-    repos: List[str]
+    repo_names: List[str]
     if args.command == "status":
-        repos = args.repos
+        repo_names = args.repos
+        repo_names_check(repo_names, config)
+
         no_fetch = args.no_fetch
-        status(config, repos, current_uid, no_fetch, threads)
+        status(config, repo_names, current_uid, no_fetch, threads)
     elif args.command == "commit":
         repo_name = args.repo
+        repo_name_check(repo_name, config)
+
         repo = config[repo_name]
         commit(repo, current_uid, user_name, user_email, args.args)
     elif args.command == "update":
-        repos = args.repos
-        if repos:
+        repo_names = args.repos
+        repo_names_check(repo_names, config)
+
+        if repo_names:
             new_config: UserConfigType = {}
-            for repo_name in repos:
+            for repo_name in repo_names:
                 new_config[repo_name] = config[repo_name]
             config = new_config
         update(config, current_uid, threads)
     elif args.command == "vcs":
         repo_name = args.repo
+        repo_name_check(repo_name, config)
+
         repo = config[repo_name]
         vcs(repo, current_uid, user_name, user_email, args.args)
     elif args.command == "ls":
         print("\n".join(config.keys()))
     elif args.command == "diff":
         repo_name = args.repo
+        repo_name_check(repo_name, config)
+
         repo = config[repo_name]
         diff(repo, current_uid)
 
