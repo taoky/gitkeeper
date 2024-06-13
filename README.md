@@ -43,6 +43,8 @@ options:
 
 `PARALLEL` defaults to 8.
 
+A special name, `.`, could be used to represent the current directory repo if it exists in config file.
+
 ## Example
 
 ![Screenshot](assets/example.png)

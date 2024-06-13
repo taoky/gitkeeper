@@ -200,6 +200,24 @@ def get_user_args(user_name: str, user_email: str) -> List[str]:
     return ["-c", f"user.name={user_name}", "-c", f"user.email={user_email}"]
 
 
+def find_git_toplevel() -> Optional[Path]:
+    try:
+        p = Path.cwd()
+        root_dev = p.stat().st_dev
+
+        while p.stat().st_dev == root_dev:
+            if (p / ".git").exists():
+                return p
+            if p == p.parent:
+                break
+            p = p.parent
+    except Exception as e:
+        # don't crash if we can't find git toplevel, just notice the user
+        print("Error finding git toplevel:", e)
+
+    return None
+
+
 def status(
     config: UserConfigType,
     repos: List[str],
@@ -367,14 +385,24 @@ def main(args: argparse.Namespace) -> None:
 
     parser = configparser.ConfigParser()
     parser.read(args.config)
+    cwd_toplevel = find_git_toplevel()
     _config = {k: dict(parser.items(k)) for k in parser.sections()}
     # check if config is valid
     config: UserConfigType = {}
     for repo_name in _config:
+        if repo_name == ".":
+            print("A repo name of . is unsupported.")
+            continue
         config[repo_name] = {}  # type: ignore
         config[repo_name]["path"] = Path(_config[repo_name]["path"])
         if _config[repo_name].get("user"):
             config[repo_name]["user"] = _config[repo_name]["user"]
+        if config[repo_name]["path"] == cwd_toplevel:
+            config["."] = {
+                "path": cwd_toplevel,
+                "user": config[repo_name].get("user"),
+            }
+
     threads = args.parallel
 
     repos: List[str]
