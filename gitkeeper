@@ -426,7 +426,9 @@ def main(args: argparse.Namespace) -> None:
         config[repo_name]["path"] = Path(_config[repo_name]["path"])
         if _config[repo_name].get("user"):
             config[repo_name]["user"] = _config[repo_name]["user"]
-        if config[repo_name]["path"] == cwd_toplevel:
+        # sometimes the path in config, or cwd toplevel get, could be a symlink...
+        # we need to resolve to make sure this case is covered.
+        if cwd_toplevel and config[repo_name]["path"].resolve() == cwd_toplevel.resolve():
             config["."] = {
                 "path": cwd_toplevel,
                 "user": config[repo_name].get("user"),
