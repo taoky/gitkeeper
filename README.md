@@ -81,7 +81,7 @@ email = me@example.com
 name = example
 ```
 
-Gitkeeper would ask your email if the file does not exist, and use username as name. You could override them in the config file.
+Gitkeeper would ask your email if the file does not exist, and use username as name. You could override them in the config file. If `~/.gitkeeper.conf` does not exist, gitkeeper would try reading `~/.gitconfig` to see if `user.email` is set, and use it and `user.name` (or username).
 
 Note that if you use `sudo` to run gitkeeper, it would still use the config file in the home directory of the user (instead of root) who runs it.
 

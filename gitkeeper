@@ -38,11 +38,11 @@ else:
 
 UserConfigType = Dict[str, InnerUserConfigType]
 if os.environ.get("SUDO_USER"):
-    USER_CONFIG_FILE = Path(
-        pwd.getpwuid(int(os.environ["SUDO_UID"])).pw_dir + "/.gitkeeper.conf"
-    )
+    user_home = Path(pwd.getpwuid(int(os.environ["SUDO_UID"])).pw_dir)
 else:
-    USER_CONFIG_FILE = Path.home() / ".gitkeeper.conf"
+    user_home = Path.home()
+USER_CONFIG_FILE = user_home / ".gitkeeper.conf"
+USER_GITCONFIG_FILE = user_home / ".gitconfig"
 
 current_username = os.environ.get("SUDO_USER") or pwd.getpwuid(os.getuid()).pw_name
 
@@ -374,11 +374,21 @@ def diff(repo: InnerUserConfigType, current_uid: int) -> None:
         pass
 
 
-def main(args: argparse.Namespace) -> None:
-    current_uid = os.getuid()
-    if USER_CONFIG_FILE.exists():
+def handle_user_config() -> Tuple[str, str]:
+    def check_config(config_path: Path) -> Optional[configparser.ConfigParser]:
         parser = configparser.ConfigParser()
-        parser.read(USER_CONFIG_FILE)
+        if not parser.read(config_path):
+            return None
+        # The config should have ["user"]["email"] available
+        if "user" in parser.sections() and parser["user"].get("email"):
+            return parser
+        return None
+
+    # ~/.gitkeeper.conf first, and then ~/.gitconfig
+    parser = check_config(USER_CONFIG_FILE)
+    if not parser:
+        parser = check_config(USER_GITCONFIG_FILE)
+    if parser:
         user_email = parser["user"]["email"]
     else:
         # ask for user email, save it to USER_CONFIG_FILE
@@ -387,8 +397,16 @@ def main(args: argparse.Namespace) -> None:
         parser["user"] = {"email": user_email}
         with open(USER_CONFIG_FILE, "w", encoding="utf-8") as f:
             parser.write(f)
-        print(f"You can change your email in {USER_CONFIG_FILE}")
+        print(
+            f"You can change your email (and name, if necessary) in {USER_CONFIG_FILE}"
+        )
     user_name = parser["user"].get("name", current_username)
+    return user_email, user_name
+
+
+def main(args: argparse.Namespace) -> None:
+    current_uid = os.getuid()
+    user_email, user_name = handle_user_config()
 
     if not args.config.exists():
         print(f"Global config file {args.config} not found")
