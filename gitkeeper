@@ -67,7 +67,17 @@ def _run_git_command(
     timeout: Optional[float] = None,
 ) -> Optional[str]:
     if sudo_user:
-        command = ["sudo", "-u", sudo_user, "git"] + command
+        if not USER_GITCONFIG_FILE.exists():
+            command = ["sudo", "-u", sudo_user, "git"] + command
+        else:
+            command = [
+                "sudo",
+                "-u",
+                sudo_user,
+                "env",
+                f"GIT_CONFIG_GLOBAL={str(USER_GITCONFIG_FILE.absolute())}",
+                "git",
+            ] + command
     else:
         command = ["git"] + command
     try:
@@ -401,9 +411,6 @@ def handle_user_config() -> Tuple[str, str]:
             f"You can change your email (and name, if necessary) in {USER_CONFIG_FILE}"
         )
     user_name = parser["user"].get("name", current_username)
-    # if ~/.gitconfig exists, set as global
-    if USER_GITCONFIG_FILE.exists():
-        os.environ["GIT_CONFIG_GLOBAL"] = str(USER_GITCONFIG_FILE.absolute())
     return user_email, user_name
 
 
@@ -431,7 +438,10 @@ def main(args: argparse.Namespace) -> None:
             config[repo_name]["user"] = _config[repo_name]["user"]
         # sometimes the path in config, or cwd toplevel get, could be a symlink...
         # we need to resolve to make sure this case is covered.
-        if cwd_toplevel and config[repo_name]["path"].resolve() == cwd_toplevel.resolve():
+        if (
+            cwd_toplevel
+            and config[repo_name]["path"].resolve() == cwd_toplevel.resolve()
+        ):
             config["."] = {
                 "path": cwd_toplevel,
                 "user": config[repo_name].get("user"),
