@@ -1,0 +1,28 @@
+name: Linting
+
+on:
+  - push
+  - pull_request
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v3
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install linter dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pylint mypy
+    - name: Type check
+      run: |
+        mypy --strict gitkeeper
+    - name: Analysing the code with pylint (ignore warnings for now)
+      run: |
+        pylint gitkeeper || true
