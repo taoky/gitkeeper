@@ -24,7 +24,7 @@ from typing import (
 from concurrent.futures import ThreadPoolExecutor
 
 
-def make_table(data: Iterable[Collection[Any]], headers: Sequence[str]) -> str:
+def make_table(data: Collection[Collection[Any]], headers: Sequence[str]) -> str:
     """
     Alternative for tabulate.tabulate, to make gitkeeper free of deps.
     """
@@ -45,10 +45,11 @@ def make_table(data: Iterable[Collection[Any]], headers: Sequence[str]) -> str:
     for idx in range(len(headers)):
         s += "-" * (collens[idx]) + " "
     s += "\n"
-    for row in data:
+    for ridx, row in enumerate(data):
         for idx, col in enumerate(row):
             s += str(col) + " " * (collens[idx] - len(str(col)) + 1)
-        s += "\n"
+        if ridx != len(data) - 1:
+            s += "\n"
     return s
 
 
