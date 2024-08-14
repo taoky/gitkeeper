@@ -2,6 +2,8 @@
 
 Works like etckeeper, but tracks git repos specified instead of just `/etc`.
 
+No third-party dependencies required. Python >= 3.8 (as the one for Ubuntu 20.04). It's expected for this script to run in supported Ubuntu LTS and Debian (5 years, ESM and ELTS excluded).
+
 ## Install
 
 ```shell
