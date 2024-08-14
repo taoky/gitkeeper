@@ -539,6 +539,7 @@ if __name__ == "__main__":
     if args.command is None:
         args.command = "status"
         args.repos = []
+        args.no_fetch = False
     elif args.command == "help":
         parser.print_help()
         sys.exit(0)
