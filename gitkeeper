@@ -9,15 +9,37 @@ import os
 import pwd
 import signal
 import sys
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Sequence, Tuple
 from concurrent.futures import ThreadPoolExecutor
 
-# third-party deps
-try:
-    import tabulate
-except ImportError:
-    print("Missing deps 'tabulate': apt-get install python3-tabulate")
-    sys.exit(1)
+
+def make_table(data: Iterable[Iterable[Any]], headers: Sequence[str]) -> str:
+    """
+    Alternative for tabulate.tabulate, to make gitkeeper free of deps.
+    """
+    s = ""
+    # get longest item in every col
+    colnums = len(headers)
+    collens = [0] * colnums
+    for idx, head in enumerate(headers):
+        collens[idx] = max(collens[idx], len(head))
+    for row in data:
+        assert len(row) == colnums
+        for idx, col in enumerate(row):
+            collens[idx] = max(collens[idx], len(str(col)))
+
+    for idx, head in enumerate(headers):
+        s += head + " " * (collens[idx] - len(head) + 1)
+    s += "\n"
+    for idx in range(len(headers)):
+        s += "-" * (collens[idx]) + " "
+    s += "\n"
+    for row in data:
+        for col in row:
+            s += str(col) + " " * (collens[idx] - len(str(col)) + 1)
+        s += "\n"
+    return s
+
 
 try:
     # Python 3.8+
@@ -289,7 +311,7 @@ def status(
     with ThreadPoolExecutor(max_workers=threads) as executor:
         table = list(executor.map(get_single_status, repo_names))
 
-    print(tabulate.tabulate(table, headers=["Repo", "Name", "Status", "Remote"]))
+    print(make_table(table, headers=["Repo", "Name", "Status", "Remote"]))
 
 
 def commit(
