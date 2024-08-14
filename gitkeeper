@@ -9,7 +9,18 @@ import os
 import pwd
 import signal
 import sys
-from typing import TYPE_CHECKING, Any, Dict, Iterable, Collection, List, Optional, Sequence, Tuple
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Iterable,
+    Collection,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    TypedDict,
+)
 from concurrent.futures import ThreadPoolExecutor
 
 
@@ -35,28 +46,17 @@ def make_table(data: Iterable[Collection[Any]], headers: Sequence[str]) -> str:
         s += "-" * (collens[idx]) + " "
     s += "\n"
     for row in data:
-        for col in row:
+        for idx, col in enumerate(row):
             s += str(col) + " " * (collens[idx] - len(str(col)) + 1)
         s += "\n"
     return s
 
 
-try:
-    # Python 3.8+
-    from typing import TypedDict
-except ImportError:
-    TypedDict = dict
-
-
 # user email & name config
-if TYPE_CHECKING:
+class InnerUserConfigType(TypedDict):
+    path: Path
+    user: Optional[str]
 
-    class InnerUserConfigType(TypedDict):
-        path: Path
-        user: Optional[str]
-
-else:
-    InnerUserConfigType = Dict[str, str]
 
 UserConfigType = Dict[str, InnerUserConfigType]
 if os.environ.get("SUDO_USER"):
