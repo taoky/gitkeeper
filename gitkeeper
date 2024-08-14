@@ -9,11 +9,11 @@ import os
 import pwd
 import signal
 import sys
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Iterable, Collection, List, Optional, Sequence, Tuple
 from concurrent.futures import ThreadPoolExecutor
 
 
-def make_table(data: Iterable[Iterable[Any]], headers: Sequence[str]) -> str:
+def make_table(data: Iterable[Collection[Any]], headers: Sequence[str]) -> str:
     """
     Alternative for tabulate.tabulate, to make gitkeeper free of deps.
     """
