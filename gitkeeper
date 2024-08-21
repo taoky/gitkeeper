@@ -10,10 +10,8 @@ import pwd
 import signal
 import sys
 from typing import (
-    TYPE_CHECKING,
     Any,
     Dict,
-    Iterable,
     Collection,
     List,
     Optional,
@@ -257,9 +255,12 @@ def repo_name_check(repo_name: str, config: UserConfigType) -> None:
         sys.exit(1)
 
 
-def repo_names_check(repo_names: List[str], config: UserConfigType) -> None:
+def repo_names_handle(repo_names: List[str], config: UserConfigType) -> None:
     for repo_name in repo_names:
         repo_name_check(repo_name, config)
+    if len(repo_names) == 0 and config.get("."):
+        # Remove . if user wants to show/handle all repos
+        del config["."]
 
 
 def status(
@@ -475,7 +476,7 @@ def main(args: argparse.Namespace) -> None:
     repo_names: List[str]
     if args.command == "status":
         repo_names = args.repos
-        repo_names_check(repo_names, config)
+        repo_names_handle(repo_names, config)
 
         no_fetch = args.no_fetch
         status(config, repo_names, current_uid, no_fetch, threads)
@@ -487,7 +488,7 @@ def main(args: argparse.Namespace) -> None:
         commit(repo, current_uid, user_name, user_email, args.args)
     elif args.command == "update":
         repo_names = args.repos
-        repo_names_check(repo_names, config)
+        repo_names_handle(repo_names, config)
 
         if repo_names:
             new_config: UserConfigType = {}
