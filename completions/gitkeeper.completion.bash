@@ -2,24 +2,35 @@
 
 _comp_cmd_gitkeeper()
 {
-    local cur prev words cword
-    COMPREPLY=()
-    cur="${COMP_WORDS[COMP_CWORD]}"
-    prev="${COMP_WORDS[COMP_CWORD-1]}"
+  local cur prev words cword
+  _get_comp_words_by_ref cur prev words cword
+  word1="${COMP_WORDS[1]}"
+  COMPREPLY=()
 
-    case "${prev}" in
-        gitkeeper)
-            COMPREPLY=( $(compgen -W "status commit update vcs ls diff help" -- ${cur}) )
-            return 0
-            ;;
-        "status"|"commit"|"update"|"vcs"|"diff")
-            local options
-            if options=$(gitkeeper ls < /dev/null 2> /dev/null); then
-                COMPREPLY=( $(compgen -W "${options}" -- ${cur}) )
-            else
-                COMPREPLY=()
-            fi
-            return 0
-            ;;
+  if [ $COMP_CWORD -eq 1 ]; then
+    COMPREPLY=( $(compgen -W "status commit update vcs ls diff help" -- "$cur") )
+    return 0
+  elif [ $COMP_CWORD -eq 2 ]; then
+    case "$word1" in
+      status|commit|update|vcs|diff)
+        local options
+        if options="$(gitkeeper ls </dev/null 2>/dev/null)"; then
+          COMPREPLY=( $(compgen -W "${options}" -- ${cur}) )
+        else
+          COMPREPLY=()
+        fi
+        return 0
+        ;;
     esac
-} && complete -F _comp_cmd_gitkeeper gitkeeper
+  elif [ $COMP_CWORD -ge 3 ]; then
+    case "$word1" in
+      vcs)
+        . /usr/share/bash-completion/completions/git
+        COMP_LINE="git ${COMP_WORDS[*]:3}"
+        COMP_WORDS=( git "${COMP_WORDS[@]:3}" )
+        ((COMP_CWORD -= 2))
+        __git_wrap__git_main
+        ;;
+    esac
+  fi
+} && complete -o bashdefault -o default -o nospace -F _comp_cmd_gitkeeper gitkeeper
