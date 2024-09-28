@@ -501,6 +501,11 @@ def main(args: argparse.Namespace) -> None:
         repo_name_check(repo_name, config)
 
         repo = config[repo_name]
+        # different from other commands, vcs requires changing path when user is requesting "."
+        # so that some git commands could work correctly like "gitkeeper vcs . blame ./somefile"
+        # if you're inside somedir/ and don't change cwd here, git would not work as expected.
+        if repo_name == ".":
+            repo["path"] = Path.cwd()
         vcs(repo, current_uid, user_name, user_email, args.args)
     elif args.command == "ls":
         print("\n".join(config.keys()))
