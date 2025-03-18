@@ -45,7 +45,7 @@ options:
 
 `PARALLEL` defaults to 8.
 
-A special name, `.`, could be used to represent the current directory repo if it exists in config file. This means that you could set `alias gitk="gitkeeper vcs ."` and enjoy `gitk` same as how you use `git` before.
+A special name, `.`, could be used to represent the current directory repo if it exists in config file. This means that you could set `alias gitkp="gitkeeper vcs ."` and enjoy `gitkp` same as how you use `git` before.
 
 ## Example
 
