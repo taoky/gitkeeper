@@ -34,3 +34,11 @@ _comp_cmd_gitkeeper()
     esac
   fi
 } && complete -o bashdefault -o default -o nospace -F _comp_cmd_gitkeeper gitkeeper
+
+_comp_cmd_gitkp()
+{
+  . /usr/share/bash-completion/completions/git
+  COMP_LINE="git ${COMP_WORDS[*]:1}"
+  COMP_WORDS=( git "${COMP_WORDS[@]:1}" )
+  __git_wrap__git_main
+} && complete -o bashdefault -o default -o nospace -F _comp_cmd_gitkp gitkp
