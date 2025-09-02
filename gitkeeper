@@ -269,6 +269,7 @@ def status(
     current_uid: int,
     no_fetch: bool,
     threads: int,
+    motd: bool = False,
 ) -> None:
     if not repo_names:
         repo_names = list(config.keys())
@@ -313,7 +314,16 @@ def status(
     with ThreadPoolExecutor(max_workers=threads) as executor:
         table = list(executor.map(get_single_status, repo_names))
 
-    print(make_table(table, headers=["Repo", "Name", "Status", "Remote"]))
+    if not motd:
+        print(make_table(table, headers=["Repo", "Name", "Status", "Remote"]))
+    else:
+        # Generate minimalism MOTD output
+        with open("/run/gitkeeper-motd", "w", encoding="utf-8") as f:
+            for row in table:
+                _, repo_name, status_str, remote_str = row
+                if "✅" in status_str and "✅" in remote_str:
+                    continue
+                print(f"{repo_name}: {status_str}, {remote_str}", file=f)
 
 
 def commit(
@@ -474,12 +484,19 @@ def main(args: argparse.Namespace) -> None:
     threads = args.parallel
 
     repo_names: List[str]
-    if args.command == "status":
+    if args.command == "status" or args.command == "motd":
         repo_names = args.repos
         repo_names_handle(repo_names, config)
 
         no_fetch = args.no_fetch
-        status(config, repo_names, current_uid, no_fetch, threads)
+        status(
+            config,
+            repo_names,
+            current_uid,
+            no_fetch,
+            threads,
+            motd=(args.command == "motd"),
+        )
     elif args.command == "commit":
         repo_name = args.repo
         repo_name_check(repo_name, config)
@@ -561,6 +578,8 @@ if __name__ == "__main__":
     parser_ls = subparsers.add_parser("ls", help="Just list all repos")
     parser_diff = subparsers.add_parser("diff", help="Show changes in given repo")
     parser_diff.add_argument("repo", help="The repo to show diff of")
+
+    parser_motd = subparsers.add_parser("motd", help="Generate MOTD output")
 
     parser_help = subparsers.add_parser("help", help="Show help")
 

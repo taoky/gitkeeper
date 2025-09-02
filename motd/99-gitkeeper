@@ -1,0 +1,6 @@
+#!/bin/sh
+if [ -f /run/gitkeeper-motd ]; then
+    cat /run/gitkeeper-motd
+else
+    echo "(gitkeeper-motd hasn't been executed yet)"
+fi

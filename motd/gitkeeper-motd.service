@@ -1,0 +1,7 @@
+[Unit]
+Description=Generate GitKeeper MOTD
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=gitkeeper motd
