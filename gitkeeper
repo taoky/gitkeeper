@@ -322,7 +322,7 @@ def status(
             written = False
             for row in table:
                 _, repo_name, status_str, remote_str = row
-                if "✅" in status_str and "✅" in remote_str:
+                if "✅" in status_str and ("✅" in remote_str or "N/A" == remote_str):
                     continue
                 f.write(f"{repo_name}: {status_str}, {remote_str}\n")
                 written = True
