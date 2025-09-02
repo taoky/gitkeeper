@@ -319,11 +319,16 @@ def status(
     else:
         # Generate minimalism MOTD output
         with open("/run/gitkeeper-motd", "w", encoding="utf-8") as f:
+            written = False
             for row in table:
                 _, repo_name, status_str, remote_str = row
                 if "✅" in status_str and "✅" in remote_str:
                     continue
-                print(f"{repo_name}: {status_str}, {remote_str}", file=f)
+                f.write(f"{repo_name}: {status_str}, {remote_str}\n")
+                written = True
+            if written:
+                f.write("⬆️ Please commit & update your repos. ⬆️\n")
+                f.write("If in doubt, always ask!\n")
 
 
 def commit(
