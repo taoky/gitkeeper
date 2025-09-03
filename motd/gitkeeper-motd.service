@@ -1,6 +1,7 @@
 [Unit]
 Description=Generate GitKeeper MOTD
 After=network.target
+ConditionPathExists=/etc/gitkeeper.conf
 
 [Service]
 Type=oneshot
