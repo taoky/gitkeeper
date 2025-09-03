@@ -1,0 +1,8 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: gitkeeper
+Source: https://github.com/taoky/gitkeeper
+
+Files: *
+Copyright: 2025 Keyu Tao <taoky@ustclug.org>
+License: MIT
+ Permission is hereby granted...
