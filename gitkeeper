@@ -455,7 +455,8 @@ def handle_user_config() -> Tuple[str, str]:
 
 def main(args: argparse.Namespace) -> None:
     current_uid = os.getuid()
-    user_email, user_name = handle_user_config()
+    if args.command != "motd":
+        user_email, user_name = handle_user_config()
 
     if not args.config.exists():
         print(f"Global config file {args.config} not found")
