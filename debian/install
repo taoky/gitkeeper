@@ -1,0 +1,5 @@
+gitkeeper usr/bin/gitkeeper
+completions/gitkeeper.completion.bash usr/share/bash-completion/completions/gitkeeper
+motd/99-gitkeeper etc/update-motd.d/99-gitkeeper
+motd/gitkeeper-motd.service lib/systemd/system/gitkeeper-motd.service
+motd/gitkeeper-motd.timer lib/systemd/system/gitkeeper-motd.timer

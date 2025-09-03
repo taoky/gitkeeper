@@ -1,0 +1,8 @@
+Package: gitkeeper
+Version: 0.20250903-1
+Section: utils
+Priority: optional
+Maintainer: Keyu Tao <taoky@ustclug.org>
+Architecture: all
+Depends: python3, git, sudo
+Description: Tracks specified git repos for sysadmins
