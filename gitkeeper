@@ -21,6 +21,8 @@ from typing import (
 )
 from concurrent.futures import ThreadPoolExecutor
 
+__VERSION__ = "0.20250903.0"
+
 
 def make_table(data: Collection[Collection[Any]], headers: Sequence[str]) -> str:
     """
@@ -541,7 +543,9 @@ def main(args: argparse.Namespace) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser("Track git repos")
+    parser = argparse.ArgumentParser(
+        "gitkeeper", description="Tracks specified git repos for sysadmins."
+    )
     parser.add_argument(
         "--config",
         "-c",
@@ -555,6 +559,9 @@ if __name__ == "__main__":
         help="Threads to use for status and update commands",
         default=8,
         type=int,
+    )
+    parser.add_argument(
+        "--version", "-v", action="version", version=f"%(prog)s {__VERSION__}"
     )
     subparsers = parser.add_subparsers(dest="command")
 
