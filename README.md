@@ -4,7 +4,15 @@ Works like etckeeper, but tracks git repos specified instead of just `/etc`.
 
 No third-party dependencies required. Python >= 3.9 (as the one for Debian 11). It's expected for this script to run in supported Ubuntu LTS and Debian (5 years, ESM and ELTS excluded).
 
+Available in [GitHub](https://github.com/taoky/gitkeeper) and [Debian GitLab (Salsa)](https://salsa.debian.org/taoky/gitkeeper).
+
 ## Install
+
+### Debian install
+
+(TODO)
+
+### Simple file install
 
 ```shell
 sudo wget https://github.com/taoky/gitkeeper/raw/master/gitkeeper -O /usr/local/bin/gitkeeper
@@ -18,6 +26,8 @@ If you're using bash, you could download the completion script:
 ```shell
 sudo wget https://github.com/taoky/gitkeeper/raw/master/completions/gitkeeper.completion.bash -O /etc/bash_completion.d/gitkeeper
 ```
+
+If you want to add motd, check [motd/](motd/) folder.
 
 ## Help
 
