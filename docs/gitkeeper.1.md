@@ -96,4 +96,4 @@ gitkeeper vcs . diff HEAD~1 HEAD
 
 # HISTORY
 
-September 2025, Originally compiled by Keyu Tao <taoky@ustclug.org>
+September 2025, Originally compiled by Keyu Tao (taoky@ustclug.org)
