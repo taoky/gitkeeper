@@ -22,6 +22,7 @@ Please make sure:
 1. Users running gitkeeper have read and write access through `sudo` (`NOPASSWD` is **required**) for git repositories specified in the config file.
     - **gitkeeper is aware of `sudo` as it uses `SUDO_USER` environment variable to determine which user to run git commands as**. Other elevated privilege methods (like `su`, `doas`, `pkexec`, `run0`, etc.) are not supported.
 2. Repositories needed to be pushed to remote are set up with **SSH** deploy keys. Gitkeeper would NOT try pushing repos using HTTPS.
+    - Read **EXAMPLE: SSH DEPLOY TRICKS** below for details, especially if you are using GitHub.
 3. It's recommended to set up alias:
 
     ```bash
@@ -93,6 +94,33 @@ Also, the `vcs` command allows you to run any git command on specified repos:
 ```bash
 gitkeeper vcs . diff HEAD~1 HEAD
 ```
+
+# EXAMPLE: SSH DEPLOY TRICKS
+
+For your information, you can create a deploy key for each repository with following steps:
+
+1. Create a SSH key pair inside the `.git` directory of the repository.
+
+    ```bash
+    cd .git
+    # RSA key pair
+    ssh-keygen -f ./id_rsa -t rsa -b 4096 -N ""
+    # or ED25519 key pair
+    ssh-keygen -f ./id_ed25519 -t ed25519 -N ""
+    ```
+
+2. Update `.git/config` like this:
+
+    ```ini
+    [core]
+        # ...
+        # RSA key pair
+        sshCommand = ssh -i .git/id_rsa
+        # or ED25519 key pair
+        sshCommand = ssh -i .git/id_ed25519
+    ```
+
+3. Add public key (`id_rsa.pub` or `id_ed25519.pub`) to the repository's deploy keys.
 
 # HISTORY
 
