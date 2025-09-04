@@ -2,3 +2,6 @@
 
 %:
 	dh $@
+
+execute_before_dh_installman:
+	go-md2man -in docs/gitkeeper.1.md -out docs/gitkeeper.1
