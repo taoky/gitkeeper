@@ -12,6 +12,7 @@ Rules-Requires-Root: no
 Package: gitkeeper
 Architecture: all
 Depends: ${misc:Depends}, python3, git, sudo
+Conflicts: mrb
 Description: Tracks specified git repos for sysadmins
  Gitkeeper is a tool to help sysadmins track the status of specified git
  repositories on a server. It checks if the repositories are clean (no
