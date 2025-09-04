@@ -1,5 +1,3 @@
-#!/bin/bash
-
 _comp_cmd_gitkeeper()
 {
   local cur prev words cword

@@ -12,11 +12,11 @@ Package: gitkeeper
 Architecture: all
 Depends: ${misc:Depends}, python3, git, sudo
 Description: Tracks specified git repos for sysadmins
- Gitkeeper is a tool to help sysadmins track the status of specified git 
- repositories on a server. It checks if the repositories are clean (no 
- uncommitted changes) and if they are up-to-date with their remote 
+ Gitkeeper is a tool to help sysadmins track the status of specified git
+ repositories on a server. It checks if the repositories are clean (no
+ uncommitted changes) and if they are up-to-date with their remote
  counterparts.
  .
  Gitkeeper also provides a systemd servicea and timer, to help display
  status information in the message of the day (MOTD). This is useful
- for reminding sysadmins to clean and update their repositories. 
+ for reminding sysadmins to clean and update their repositories.
