@@ -492,7 +492,7 @@ def main(args: argparse.Namespace) -> None:
     threads = args.parallel
 
     repo_names: List[str]
-    if args.command == "status" or args.command == "motd":
+    if args.command == "status":
         repo_names = args.repos
         repo_names_handle(repo_names, config)
 
@@ -503,7 +503,17 @@ def main(args: argparse.Namespace) -> None:
             current_uid,
             no_fetch,
             threads,
-            motd=(args.command == "motd"),
+        )
+    elif args.command == "motd":
+        all_repos = []
+        repo_names_handle(all_repos, config)
+        status(
+            config,
+            all_repos,
+            current_uid,
+            no_fetch=True,
+            threads=threads,
+            motd=True,
         )
     elif args.command == "commit":
         repo_name = args.repo
