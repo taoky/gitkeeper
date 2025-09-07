@@ -12,6 +12,8 @@ Available in [GitHub](https://github.com/taoky/gitkeeper) and [Debian GitLab (Sa
 
 (TODO)
 
+Note that you need to remove `/usr/local/bin/gitkeeper` if you have installed it manually before.
+
 ### Simple file install
 
 ```shell

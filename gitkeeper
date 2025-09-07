@@ -317,15 +317,12 @@ def status(
         print(make_table(table, headers=["Repo", "Name", "Status", "Remote"]))
     else:
         with open("/run/gitkeeper-motd", "w", encoding="utf-8") as f:
-            written = False
             # Filter clean and up-to-date repos
             for i in range(len(table)-1, -1, -1):
                 _, _, status_str, remote_str = table[i]
                 if "✅" in status_str and ("✅" in remote_str or "N/A" == remote_str):
                     del table[i]
-                    continue
-                written = True
-            if written:
+            if len(table) > 0:
                 f.write("⚠️ Some repos need your attention! ⚠️\n")
                 f.write(make_table(table, headers=["Repo", "Name", "Status", "Remote"]) + "\n")
                 f.write("⬆️ Please commit & update your repos. ⬆️\n")
