@@ -11,12 +11,9 @@ import signal
 import sys
 from typing import (
     Any,
-    Dict,
     Collection,
-    List,
     Optional,
     Sequence,
-    Tuple,
     TypedDict,
 )
 from concurrent.futures import ThreadPoolExecutor
@@ -59,7 +56,7 @@ class InnerUserConfigType(TypedDict):
     user: Optional[str]
 
 
-UserConfigType = Dict[str, InnerUserConfigType]
+UserConfigType = dict[str, InnerUserConfigType]
 if os.environ.get("SUDO_USER"):
     user_home = Path(pwd.getpwuid(int(os.environ["SUDO_UID"])).pw_dir)
 else:
@@ -84,7 +81,7 @@ class GitRuntimeError(RuntimeError):
 
 def _run_git_command(
     repo: Path,
-    command: List[str],
+    command: list[str],
     sudo_user: Optional[str] = None,
     raw: bool = False,
     timeout: Optional[float] = None,
@@ -125,7 +122,7 @@ def _run_git_command(
 
 def run_git_command(
     repo: Path,
-    command: List[str],
+    command: list[str],
     sudo_user: Optional[str] = None,
     timeout: Optional[float] = None,
 ) -> str:
@@ -134,7 +131,7 @@ def run_git_command(
 
 def run_git_command_raw(
     repo: Path,
-    command: List[str],
+    command: list[str],
     sudo_user: Optional[str] = None,
     timeout: Optional[float] = None,
 ) -> None:
@@ -154,7 +151,7 @@ def get_sudo_user(repo: InnerUserConfigType, current_uid: int) -> Optional[str]:
     return None
 
 
-def compare_hashes(repo: Path, sudo_user: Optional[str]) -> Tuple[str, str, str]:
+def compare_hashes(repo: Path, sudo_user: Optional[str]) -> tuple[str, str, str]:
     local_hash = run_git_command(repo, ["rev-parse", "HEAD"], sudo_user=sudo_user)
     remote_hash = run_git_command(repo, ["rev-parse", "@{u}"], sudo_user=sudo_user)
     base_hash = run_git_command(
@@ -212,7 +209,7 @@ def has_remote(repo: Path, sudo_user: Optional[str], push: bool = False) -> Remo
     return RemoteType.UNKNOWN
 
 
-def get_status(repo: Path, sudo_user: Optional[str]) -> Tuple[int, int]:
+def get_status(repo: Path, sudo_user: Optional[str]) -> tuple[int, int]:
     status_str = run_git_command(
         repo, ["status", "--porcelain=v1"], sudo_user=sudo_user
     )
@@ -229,7 +226,7 @@ def get_status(repo: Path, sudo_user: Optional[str]) -> Tuple[int, int]:
     return (untracked, staged)
 
 
-def get_user_args(user_name: str, user_email: str) -> List[str]:
+def get_user_args(user_name: str, user_email: str) -> list[str]:
     return ["-c", f"user.name={user_name}", "-c", f"user.email={user_email}"]
 
 
@@ -257,7 +254,7 @@ def repo_name_check(repo_name: str, config: UserConfigType) -> None:
         sys.exit(1)
 
 
-def repo_names_handle(repo_names: List[str], config: UserConfigType) -> None:
+def repo_names_handle(repo_names: list[str], config: UserConfigType) -> None:
     for repo_name in repo_names:
         repo_name_check(repo_name, config)
     if len(repo_names) == 0 and config.get("."):
@@ -267,7 +264,7 @@ def repo_names_handle(repo_names: List[str], config: UserConfigType) -> None:
 
 def status(
     config: UserConfigType,
-    repo_names: List[str],
+    repo_names: list[str],
     current_uid: int,
     no_fetch: bool,
     threads: int,
@@ -276,7 +273,7 @@ def status(
     if not repo_names:
         repo_names = list(config.keys())
 
-    def get_single_status(repo_name: str) -> Tuple[Path, str, str, str]:
+    def get_single_status(repo_name: str) -> tuple[Path, str, str, str]:
         repo = config[repo_name]
         repo_path = Path(repo["path"])
         status_str = "?"
@@ -338,7 +335,7 @@ def commit(
     current_uid: int,
     user_name: str,
     user_email: str,
-    args: List[str],
+    args: list[str],
 ) -> None:
     try:
         sudo_user = get_sudo_user(repo, current_uid)
@@ -394,7 +391,7 @@ def vcs(
     current_uid: int,
     user_name: str,
     user_email: str,
-    args: List[str],
+    args: list[str],
 ) -> None:
     try:
         sudo_user = get_sudo_user(repo, current_uid)
@@ -425,7 +422,7 @@ def diff(repo: InnerUserConfigType, current_uid: int) -> None:
         pass
 
 
-def handle_user_config() -> Tuple[str, str]:
+def handle_user_config() -> tuple[str, str]:
     def check_config(config_path: Path) -> Optional[configparser.ConfigParser]:
         parser = configparser.ConfigParser()
         if not parser.read(config_path):
@@ -491,7 +488,7 @@ def main(args: argparse.Namespace) -> None:
 
     threads = args.parallel
 
-    repo_names: List[str]
+    repo_names: list[str]
     if args.command == "status":
         repo_names = args.repos
         repo_names_handle(repo_names, config)
@@ -505,7 +502,7 @@ def main(args: argparse.Namespace) -> None:
             threads,
         )
     elif args.command == "motd":
-        all_repos = []
+        all_repos: list[str] = []
         repo_names_handle(all_repos, config)
         status(
             config,
