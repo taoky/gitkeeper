@@ -4,14 +4,14 @@ Priority: optional
 Maintainer: Keyu Tao <taoky@ustclug.org>
 Build-Depends:
  debhelper-compat (= 13),
- go-md2man,
+ go-md2man <!nodoc>,
 Standards-Version: 4.7.2
 Homepage: https://github.com/taoky/gitkeeper
 Rules-Requires-Root: no
 
 Package: gitkeeper
 Architecture: all
-Depends: ${misc:Depends}, python3, git, sudo
+Depends: ${misc:Depends}, python3 (>= 3.9), git, sudo
 Conflicts: mrb
 Description: Tracks specified git repos for sysadmins
  Gitkeeper is a tool to help sysadmins track the status of specified git
