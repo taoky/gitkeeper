@@ -4,7 +4,9 @@
 	dh $@
 
 execute_before_dh_installman:
+ifeq (,$(filter nodoc,$(DEB_BUILD_OPTIONS)))
 	go-md2man -in docs/gitkeeper.1.md -out docs/gitkeeper.1
+endif
 
 override_dh_installsystemd:
 	dh_installsystemd --name=gitkeeper-motd
