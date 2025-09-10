@@ -22,8 +22,10 @@ jobs:
             build-essential devscripts debhelper fakeroot lintian
           sudo apt-get build-dep -y .
 
-      - name: Generate dpkg changelog
+      - name: Generate dpkg-changelog entry
         run: |
+          export DEBFULLNAME="${{ github.actor }}"
+          export DEBEMAIL="${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
           DEB_VERSION=0.$(date +'%Y%m%d').0~git~$(git rev-parse --short HEAD)
           dch -b -v $DEB_VERSION --package gitkeeper "Automated build on Github Actions for ${{ github.ref }}"
 
@@ -31,11 +33,16 @@ jobs:
         run: |
           dpkg-buildpackage -us -uc -b
 
+      - name: Run litian
+        run: lintian -IE
+
       - name: Show results
         run: |
           ls -lh ..
           echo "Generated DEB files:"
           ls -lh ../*.deb
+          dpkg -I ../*.deb
+          dpkg -c ../*.deb
           mv ../*.deb ./
 
       - name: Upload build artifacts
