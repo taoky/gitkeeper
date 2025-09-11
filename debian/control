@@ -1,24 +1,24 @@
-Source: gitkeeper
+Source: git-keeper
 Section: utils
 Priority: optional
 Maintainer: Keyu Tao <taoky@ustclug.org>
 Build-Depends:
  debhelper-compat (= 13),
+ dh-exec,
  go-md2man <!nodoc>,
 Standards-Version: 4.7.2
 Homepage: https://github.com/taoky/gitkeeper
 Rules-Requires-Root: no
 
-Package: gitkeeper
+Package: git-keeper
 Architecture: all
 Depends: ${misc:Depends}, python3 (>= 3.9), git, sudo
-Conflicts: mrb
 Description: Tracks specified git repos for sysadmins
- Gitkeeper is a tool to help sysadmins track the status of specified git
+ git-keeper is a tool to help sysadmins track the status of specified git
  repositories on a server. It checks if the repositories are clean (no
  uncommitted changes) and if they are up-to-date with their remote
  counterparts.
  .
- Gitkeeper also provides a systemd service and timer, to help display
+ git-keeper also provides a systemd service and timer, to help display
  status information in the message of the day (MOTD). This is useful
  for reminding sysadmins to clean and update their repositories.

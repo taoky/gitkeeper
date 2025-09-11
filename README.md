@@ -10,9 +10,11 @@ Available in [GitHub](https://github.com/taoky/gitkeeper) and [Debian GitLab (Sa
 
 ### Debian install
 
+As `gitkeeper` conflicts with `mrb`, the package is renamed to `git-keeper` in Debian. It installs `git-keeper` instead of `gitkeeper` in `/usr/bin/`, while the config file is still `/etc/gitkeeper.conf` and `~/.gitkeeper.conf` to keep compatibility.
+
 (TODO)
 
-Note that you need to remove `/usr/local/bin/gitkeeper` if you have installed it manually before.
+Note that it's recommended to remove `/usr/local/bin/gitkeeper` if you have installed it manually before.
 
 ### Simple file install
 

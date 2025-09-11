@@ -1,6 +1,5 @@
 [Unit]
-Description=Generate GitKeeper MOTD
-Documentation=man:gitkeeper(1)
+Description=Generate Gitkeeper MOTD
 After=network.target
 ConditionPathExists=/etc/gitkeeper.conf
 

@@ -1,0 +1,9 @@
+[Unit]
+Description=Generate git-keeper MOTD
+Documentation=man:git-keeper(1)
+After=network.target
+ConditionPathExists=/etc/gitkeeper.conf
+
+[Service]
+Type=oneshot
+ExecStart=git-keeper motd

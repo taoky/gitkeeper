@@ -27,7 +27,7 @@ jobs:
           export DEBFULLNAME="${{ github.actor }}"
           export DEBEMAIL="${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
           DEB_VERSION=0.$(date +'%Y%m%d').0~git~$(git rev-parse --short HEAD)
-          dch -b -v $DEB_VERSION --package gitkeeper "Automated build on Github Actions for ${{ github.ref }}"
+          dch -b -v $DEB_VERSION --package git-keeper "Automated build on Github Actions for ${{ github.ref }}"
 
       - name: Build Debian package
         run: |

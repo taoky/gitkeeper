@@ -2,5 +2,5 @@
 if [ -f /run/gitkeeper-motd ]; then
     cat /run/gitkeeper-motd
 else
-    echo "(gitkeeper-motd hasn't been executed yet)"
+    echo "(gitkeeper motd timer hasn't been triggered yet)"
 fi

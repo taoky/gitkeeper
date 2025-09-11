@@ -1,5 +1,5 @@
 [Unit]
-Description=Generate Gitkeeper MOTD (timer)
+Description=Generate git-keeper MOTD hourly (timer)
 
 [Timer]
 OnCalendar=hourly
