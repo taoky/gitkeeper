@@ -5,6 +5,7 @@ on:
     branches:
       - master
   pull_request:
+  workflow_dispatch:
 
 jobs:
   build:
@@ -50,3 +51,26 @@ jobs:
         with:
           name: debian-packages
           path: ./*.deb
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    # manual trigger or a tag push
+    if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/') }}
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: debian-packages
+      
+      - name: Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ github.event_name == 'workflow_dispatch' && 'rolling' || github.ref_name }}
+          name: ${{ github.event_name == 'workflow_dispatch' && 'rolling' || github.ref_name }}
+          prerelease: ${{ github.event_name == 'workflow_dispatch' && 'true' || 'false' }}
+          allowUpdates: true
+          artifacts: '*.deb'
+          token: ${{ secrets.GITHUB_TOKEN }}
