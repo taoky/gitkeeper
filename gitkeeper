@@ -79,6 +79,15 @@ class GitRuntimeError(RuntimeError):
         return f"{self.message} (exit code {self.returncode})"
 
 
+def _get_passthrough_envs() -> list[str]:
+    envs = []
+    if os.environ.get("SSH_AUTH_SOCK"):
+        envs.append(f"SSH_AUTH_SOCK={os.environ['SSH_AUTH_SOCK']}")
+    if USER_GITCONFIG_FILE.exists():
+        envs.append(f"GIT_CONFIG_GLOBAL={str(USER_GITCONFIG_FILE.absolute())}")
+    return envs
+
+
 def _run_git_command(
     repo: Path,
     command: list[str],
@@ -87,17 +96,15 @@ def _run_git_command(
     timeout: Optional[float] = None,
 ) -> Optional[str]:
     if sudo_user:
-        if not USER_GITCONFIG_FILE.exists():
-            command = ["sudo", "-u", sudo_user, "git"] + command
-        else:
-            command = [
-                "sudo",
-                "-u",
-                sudo_user,
-                "env",
-                f"GIT_CONFIG_GLOBAL={str(USER_GITCONFIG_FILE.absolute())}",
-                "git",
-            ] + command
+        envs = _get_passthrough_envs()
+        command = [
+            "sudo",
+            "-u",
+            sudo_user,
+            "env",
+            *envs,
+            "git",
+        ] + command
     else:
         command = ["git"] + command
     try:
@@ -318,13 +325,16 @@ def status(
     else:
         with open("/run/gitkeeper-motd", "w", encoding="utf-8") as f:
             # Filter clean and up-to-date repos
-            for i in range(len(table)-1, -1, -1):
+            for i in range(len(table) - 1, -1, -1):
                 _, _, status_str, remote_str = table[i]
                 if "✅" in status_str and ("✅" in remote_str or "N/A" == remote_str):
                     del table[i]
             if len(table) > 0:
                 f.write("⚠️ Some repos need your attention! ⚠️\n")
-                f.write(make_table(table, headers=["Repo", "Name", "Status", "Remote"]) + "\n")
+                f.write(
+                    make_table(table, headers=["Repo", "Name", "Status", "Remote"])
+                    + "\n"
+                )
                 f.write("⬆️ Please commit & update your repos. ⬆️\n")
                 f.write("If in doubt, always ask!\n")
 
