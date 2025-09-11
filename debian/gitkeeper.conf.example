@@ -1,0 +1,8 @@
+[rsyncd]
+path = /etc/rsyncd
+
+[systemd-network]
+path = /etc/systemd/network
+
+[nginx]
+path = /etc/nginx
